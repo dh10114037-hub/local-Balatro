@@ -89,6 +89,15 @@ type PendingImport = {
   game: GameState | null;
   profile: PersistentProfile;
 };
+type InspectTarget =
+  | { kind: 'joker'; definitionId: string; level?: number; sellValue?: number; source?: string }
+  | { kind: 'consumable'; definitionId: string; source?: string }
+  | { kind: 'playing_card'; card: Card; hidden?: boolean; source?: string }
+  | { kind: 'boss'; definitionId: string; source?: string }
+  | { kind: 'tag'; definitionId: string; source?: string }
+  | { kind: 'voucher'; definitionId: string; source?: string }
+  | { kind: 'pack'; definitionId: string; source?: string }
+  | { kind: 'spectral'; definitionId: string; source?: string };
 const SOUND_FREQUENCIES: Record<SoundKind, number> = {
   play: 520,
   discard: 240,
@@ -265,6 +274,256 @@ function Stat({ label, value }: { label: string; value: ReactNode }) {
     <div className="stat">
       <span>{label}</span>
       <strong>{value}</strong>
+    </div>
+  );
+}
+
+function getEnhancementDetail(enhancement: Card['enhancement']): string {
+  if (enhancement === 'bonus') return '计分时额外 +30 筹码。';
+  if (enhancement === 'mult') return '计分时额外 +4 倍率。';
+  if (enhancement === 'wild') return '可视为需要的花色参与同花判断。';
+  if (enhancement === 'glass') return '计分时倍率 x2，结算后有概率碎裂并离开牌组。';
+  if (enhancement === 'steel') return '留在手牌中时倍率 x1.5。';
+  if (enhancement === 'gold') return '留在手牌中并通过盲注后获得额外资金。';
+  if (enhancement === 'stone') return '提供 50 筹码，但不参与牌型点数。';
+  return '普通扑克牌，没有额外增强。';
+}
+
+function getConsumableTargetText(definition: ReturnType<typeof getConsumableDefinition>): string {
+  if (definition.target.mode === 'none') {
+    return '无需选择目标，购买后可立即使用。';
+  }
+
+  if (definition.target.min === definition.target.max) {
+    return `需要在盲注中选择 ${definition.target.min} 张手牌作为目标。`;
+  }
+
+  return `需要在盲注中选择 ${definition.target.min}-${definition.target.max} 张手牌作为目标。`;
+}
+
+function inspectTargetFromShopOffer(offer: ShopItem): InspectTarget | null {
+  if (!offer.definitionId) {
+    return null;
+  }
+
+  if (offer.kind === 'joker') {
+    return { kind: 'joker', definitionId: offer.definitionId, source: `商店商品｜$${offer.price}` };
+  }
+
+  if (offer.kind === 'consumable') {
+    return { kind: 'consumable', definitionId: offer.definitionId, source: `商店商品｜$${offer.price}` };
+  }
+
+  if (offer.kind === 'voucher') {
+    return { kind: 'voucher', definitionId: offer.definitionId, source: `商店商品｜$${offer.price}` };
+  }
+
+  return { kind: 'pack', definitionId: offer.definitionId, source: `商店商品｜$${offer.price}` };
+}
+
+function inspectTargetFromPackChoice(choice: PackChoice): InspectTarget {
+  if (choice.kind === 'playing_card') {
+    return { kind: 'playing_card', card: choice.card, source: '补充包候选' };
+  }
+
+  if (choice.kind === 'consumable') {
+    return { kind: 'consumable', definitionId: choice.definitionId, source: '补充包候选' };
+  }
+
+  if (choice.kind === 'joker') {
+    return { kind: 'joker', definitionId: choice.definitionId, source: '补充包候选' };
+  }
+
+  return { kind: 'spectral', definitionId: choice.definitionId, source: '补充包候选' };
+}
+
+function DetailPillRow({ children }: { children: ReactNode }) {
+  return <div className="detail-pill-row">{children}</div>;
+}
+
+function DetailModal({ target, onClose }: { target: InspectTarget | null; onClose: () => void }) {
+  if (!target) {
+    return null;
+  }
+
+  let title = '';
+  let kicker = target.source ?? '详情';
+  let body: ReactNode = null;
+
+  if (target.kind === 'joker') {
+    const definition = getJokerDefinition(target.definitionId);
+    title = definition.name;
+    body = (
+      <>
+        <DetailPillRow>
+          <RarityLabel rarity={definition.rarity} />
+          {definition.archetypes.map((archetype) => (
+            <span className="detail-pill" key={archetype}>{JOKER_ARCHETYPE_LABELS[archetype]}</span>
+          ))}
+          {definition.triggerTiming.map((timing) => (
+            <span className="detail-pill timing" key={timing}>{JOKER_TRIGGER_LABELS[timing]}</span>
+          ))}
+        </DetailPillRow>
+        <p>{definition.description}</p>
+        <div className="detail-section">
+          <span>触发说明</span>
+          <strong>{definition.triggerText}</strong>
+          <small>{definition.conditionText}</small>
+        </div>
+        <div className="detail-grid">
+          <Stat label="购买价格" value={`$${definition.price}`} />
+          <Stat label="卖出价值" value={`$${target.sellValue ?? getJokerSellValue(definition.id)}`} />
+          <Stat label="成长层数" value={target.level ?? 0} />
+        </div>
+      </>
+    );
+  }
+
+  if (target.kind === 'consumable') {
+    const definition = getConsumableDefinition(target.definitionId);
+    title = definition.name;
+    body = (
+      <>
+        <DetailPillRow>
+          <span className={`detail-pill ${definition.kind}`}>{getConsumableLabel(definition.id)}</span>
+          <span className="detail-pill">价格 ${definition.price}</span>
+        </DetailPillRow>
+        <p>{definition.description}</p>
+        <div className="detail-section">
+          <span>使用时机</span>
+          <strong>{getConsumableTargetText(definition)}</strong>
+          <small>{definition.target.mode === 'cards' ? '商店中只能查看和购买，实际目标需要进入盲注后选择手牌。' : '无需选择手牌目标。'}</small>
+        </div>
+      </>
+    );
+  }
+
+  if (target.kind === 'playing_card') {
+    title = target.hidden ? '盖面牌' : formatCard(target.card);
+    const enhancementName = target.card.enhancement ? ENHANCEMENT_NAMES[target.card.enhancement] : '普通牌';
+    body = (
+      <>
+        <DetailPillRow>
+          <span className="detail-pill">{target.hidden ? '盖面' : `${SUIT_LABELS[target.card.suit]} ${SUIT_NAMES[target.card.suit]}`}</span>
+          <span className="detail-pill">{target.hidden ? '点数隐藏' : target.card.rank}</span>
+          <span className={`detail-pill ${target.card.enhancement ?? ''}`}>{enhancementName}</span>
+        </DetailPillRow>
+        <p>{target.hidden ? '这张牌被 Boss 规则盖面，出牌结算时才会揭晓。' : `基础筹码：${getCardChips(target.card)}。`}</p>
+        <div className="detail-section">
+          <span>增强效果</span>
+          <strong>{enhancementName}</strong>
+          <small>{getEnhancementDetail(target.card.enhancement)}</small>
+        </div>
+      </>
+    );
+  }
+
+  if (target.kind === 'boss') {
+    const definition = getBossDefinition(target.definitionId);
+    title = definition.name;
+    kicker = target.source ?? '首领盲注';
+    body = (
+      <>
+        <p>{definition.description}</p>
+        <div className="detail-section">
+          <span>限制规则</span>
+          <div className="boss-effect-list detail-effects">
+            {definition.effects.map((effect, index) => (
+              <span key={`${definition.id}-${index}`}>{getBossEffectLabel(effect)}</span>
+            ))}
+          </div>
+        </div>
+        <div className="detail-section">
+          <span>应对建议</span>
+          <strong>{definition.advice}</strong>
+        </div>
+      </>
+    );
+  }
+
+  if (target.kind === 'tag') {
+    const definition = getTagDefinition(target.definitionId);
+    title = definition.name;
+    body = (
+      <>
+        <p>{definition.description}</p>
+        <div className="detail-section">
+          <span>兑现时机</span>
+          <strong>跳过当前小/大盲后，在后续商店或局势中生效。</strong>
+        </div>
+      </>
+    );
+  }
+
+  if (target.kind === 'voucher') {
+    const definition = getVoucherDefinition(target.definitionId);
+    title = definition.name;
+    body = (
+      <>
+        <DetailPillRow>
+          <span className="detail-pill">优惠券</span>
+          <span className="detail-pill">价格 ${definition.price}</span>
+        </DetailPillRow>
+        <p>{definition.description}</p>
+        <div className="detail-section">
+          <span>持续效果</span>
+          <strong>购买后对当前 run 持续生效。</strong>
+        </div>
+      </>
+    );
+  }
+
+  if (target.kind === 'pack') {
+    const definition = getPackDefinition(target.definitionId);
+    title = definition.name;
+    body = (
+      <>
+        <DetailPillRow>
+          <span className={`detail-pill ${definition.kind}`}>补充包</span>
+          <span className="detail-pill">价格 ${definition.price}</span>
+          <span className="detail-pill">候选 {definition.choiceCount} 张</span>
+        </DetailPillRow>
+        <p>{definition.description}</p>
+        <div className="detail-section">
+          <span>开包流程</span>
+          <strong>{definition.allowSkip ? '打开后可选择 1 张，也可以跳过。' : '打开后必须选择奖励。'}</strong>
+        </div>
+      </>
+    );
+  }
+
+  if (target.kind === 'spectral') {
+    const definition = getSpectralDefinition(target.definitionId);
+    title = definition.name;
+    body = (
+      <>
+        <DetailPillRow>
+          <span className="detail-pill spectral">幻灵牌</span>
+        </DetailPillRow>
+        <p>{definition.description}</p>
+        <div className="detail-section">
+          <span>风险提示</span>
+          <strong>效果强，但通常伴随资金或牌组代价。</strong>
+        </div>
+      </>
+    );
+  }
+
+  return (
+    <div className="detail-modal-layer" role="presentation">
+      <button type="button" className="detail-backdrop" aria-label="关闭详情" onClick={onClose} />
+      <article className={`detail-modal ${target.kind}`} role="dialog" aria-modal="true" aria-label={`${title}详情`}>
+        <header className="detail-modal-header">
+          <div>
+            <span>{kicker}</span>
+            <strong>{title}</strong>
+          </div>
+          <button type="button" className="secondary-action compact-action" onClick={onClose}>
+            关闭
+          </button>
+        </header>
+        <div className="detail-modal-body">{body}</div>
+      </article>
     </div>
   );
 }
@@ -824,6 +1083,7 @@ function JokerCard({
   canMoveRight,
   onSell,
   onMove,
+  onInspect,
   onDragStart,
   onDrop
 }: {
@@ -836,6 +1096,7 @@ function JokerCard({
   canMoveRight: boolean;
   onSell: () => void;
   onMove: (toIndex: number) => void;
+  onInspect: () => void;
   onDragStart: () => void;
   onDrop: () => void;
 }) {
@@ -847,9 +1108,17 @@ function JokerCard({
       style={triggered && triggerOrder !== null ? ({ '--joker-trigger-delay': `${triggerOrder * 120}ms` } as CSSProperties) : undefined}
       draggable
       title={definition.description}
+      tabIndex={0}
       onDragStart={onDragStart}
       onDragOver={(event) => event.preventDefault()}
       onDrop={onDrop}
+      onClick={onInspect}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          onInspect();
+        }
+      }}
     >
       <div className="joker-topline">
         <RarityLabel rarity={definition.rarity} />
@@ -862,13 +1131,39 @@ function JokerCard({
       {joker.level > 0 && <strong className="joker-level">成长 {joker.level}</strong>}
       {triggered && triggerOrder !== null && <span className="joker-trigger-order">第 {triggerOrder + 1} 个触发</span>}
       <div className="joker-actions">
-        <button type="button" className="icon-action" disabled={!canMoveLeft} aria-label="左移小丑" onClick={() => onMove(index - 1)}>
+        <button
+          type="button"
+          className="icon-action"
+          disabled={!canMoveLeft}
+          aria-label="左移小丑"
+          onClick={(event) => {
+            event.stopPropagation();
+            onMove(index - 1);
+          }}
+        >
           ←
         </button>
-        <button type="button" className="icon-action" disabled={!canMoveRight} aria-label="右移小丑" onClick={() => onMove(index + 1)}>
+        <button
+          type="button"
+          className="icon-action"
+          disabled={!canMoveRight}
+          aria-label="右移小丑"
+          onClick={(event) => {
+            event.stopPropagation();
+            onMove(index + 1);
+          }}
+        >
           →
         </button>
-        <button type="button" className="sell-action" disabled={!canSell} onClick={onSell}>
+        <button
+          type="button"
+          className="sell-action"
+          disabled={!canSell}
+          onClick={(event) => {
+            event.stopPropagation();
+            onSell();
+          }}
+        >
           卖出 ${getJokerSellValue(joker.definitionId)}
         </button>
       </div>
@@ -879,11 +1174,13 @@ function JokerCard({
 function JokerBar({
   game,
   onSell,
-  onMove
+  onMove,
+  onInspect
 }: {
   game: GameState;
   onSell: (instanceId: string) => void;
   onMove: (fromIndex: number, toIndex: number) => void;
+  onInspect: (target: InspectTarget) => void;
 }) {
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const emptySlots = Array.from({ length: Math.max(0, game.jokerSlots - game.jokers.length) });
@@ -921,6 +1218,15 @@ function JokerBar({
             canMoveRight={index < game.jokers.length - 1}
             onSell={() => onSell(joker.instanceId)}
             onMove={(toIndex) => onMove(index, toIndex)}
+            onInspect={() =>
+              onInspect({
+                kind: 'joker',
+                definitionId: joker.definitionId,
+                level: joker.level,
+                sellValue: getJokerSellValue(joker.definitionId),
+                source: `小丑槽第 ${index + 1} 位`
+              })
+            }
             onDragStart={() => setDragIndex(index)}
             onDrop={() => {
               if (dragIndex !== null) {
@@ -946,7 +1252,8 @@ function ConsumableCard({
   disabled,
   disabledReason,
   selectedTargetCount,
-  onUse
+  onUse,
+  onInspect
 }: {
   consumable: ConsumableInstance;
   active: boolean;
@@ -954,6 +1261,7 @@ function ConsumableCard({
   disabledReason: string | null;
   selectedTargetCount: number;
   onUse: () => void;
+  onInspect: () => void;
 }) {
   const definition = getConsumableDefinition(consumable.definitionId);
   const actionLabel = active ? '确认使用' : disabledReason === '需要进入盲注后选择手牌目标' ? '盲注中使用' : definition.target.mode === 'none' ? '立即使用' : '选择目标';
@@ -969,7 +1277,18 @@ function ConsumableCard({
       : targetText;
 
   return (
-    <article className={`consumable-card ${definition.kind} ${active ? 'active' : ''}`} title={`${definition.name}：${definition.description}。${targetText}`}>
+    <article
+      className={`consumable-card ${definition.kind} ${active ? 'active' : ''}`}
+      title={`${definition.name}：${definition.description}。${targetText}`}
+      tabIndex={0}
+      onClick={onInspect}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          onInspect();
+        }
+      }}
+    >
       <div className="consumable-topline">
         <span>{getConsumableLabel(definition.id)}</span>
         <strong>${definition.price}</strong>
@@ -978,7 +1297,14 @@ function ConsumableCard({
       <p>{definition.description}</p>
       <small className="consumable-target-note">{activeText}</small>
       {disabledReason && <em className="disabled-reason">{disabledReason}</em>}
-      <button type="button" disabled={disabled} onClick={onUse}>
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={(event) => {
+          event.stopPropagation();
+          onUse();
+        }}
+      >
         {actionLabel}
       </button>
     </article>
@@ -988,11 +1314,13 @@ function ConsumableCard({
 function ConsumableBar({
   game,
   onUse,
-  onCancel
+  onCancel,
+  onInspect
 }: {
   game: GameState;
   onUse: (instanceId: string) => void;
   onCancel: () => void;
+  onInspect: (target: InspectTarget) => void;
 }) {
   const emptySlots = Array.from({ length: Math.max(0, game.consumableSlots - game.consumables.length) });
   const activeConsumable = game.selectedConsumableId
@@ -1055,6 +1383,13 @@ function ConsumableBar({
               disabledReason={disabledReason}
               selectedTargetCount={selectedTargetCount}
               onUse={() => onUse(consumable.instanceId)}
+              onInspect={() =>
+                onInspect({
+                  kind: 'consumable',
+                  definitionId: consumable.definitionId,
+                  source: isActive ? '当前正在选择目标' : '消耗牌槽'
+                })
+              }
             />
           );
         })}
@@ -1068,7 +1403,7 @@ function ConsumableBar({
   );
 }
 
-function DeckPanel({ game }: { game: GameState }) {
+function DeckPanel({ game, onInspect }: { game: GameState; onInspect?: (target: InspectTarget) => void }) {
   const suitCounts = game.deck.reduce<Record<string, number>>(
     (counts, card) => ({
       ...counts,
@@ -1162,31 +1497,38 @@ function DeckPanel({ game }: { game: GameState }) {
       </div>
       <div className="deck-card-list">
         {game.deck.map((card) => (
-          <span key={card.id} className={card.enhancement ? `deck-mini-card ${card.enhancement}` : 'deck-mini-card'}>
+          <button
+            type="button"
+            key={card.id}
+            className={card.enhancement ? `deck-mini-card ${card.enhancement}` : 'deck-mini-card'}
+            onClick={() => onInspect?.({ kind: 'playing_card', card, source: '当前牌组' })}
+          >
             {formatCard(card)}
             {card.enhancement ? ` ${ENHANCEMENT_SHORT_LABELS[card.enhancement]}` : ''}
-          </span>
+          </button>
         ))}
       </div>
     </section>
   );
 }
 
-function DiscardPanel({ game }: { game: GameState }) {
+function DiscardPanel({ game, onInspect }: { game: GameState; onInspect?: (target: InspectTarget) => void }) {
   return (
     <section>
       <h2>弃牌堆</h2>
       <p className="discard-count">{game.discardPile.length} 张牌</p>
       <div className="discard-list">
         {game.discardPile.slice(-12).map((card) => (
-          <span key={card.id}>{formatCard(card)}</span>
+          <button type="button" className="discard-chip" key={card.id} onClick={() => onInspect?.({ kind: 'playing_card', card, source: '弃牌堆' })}>
+            {formatCard(card)}
+          </button>
         ))}
       </div>
     </section>
   );
 }
 
-function RunModifiersPanel({ game }: { game: GameState }) {
+function RunModifiersPanel({ game, onInspect }: { game: GameState; onInspect?: (target: InspectTarget) => void }) {
   return (
     <section>
       <h2>标记与优惠券</h2>
@@ -1200,10 +1542,16 @@ function RunModifiersPanel({ game }: { game: GameState }) {
               const definition = getTagDefinition(tag.definitionId);
 
               return (
-                <div className="run-modifier-item" key={tag.instanceId} title={`${definition.name}：${definition.description}`}>
+                <button
+                  type="button"
+                  className="run-modifier-item"
+                  key={tag.instanceId}
+                  title={`${definition.name}：${definition.description}`}
+                  onClick={() => onInspect?.({ kind: 'tag', definitionId: definition.id, source: '待兑现标记' })}
+                >
                   <strong>{definition.name}</strong>
                   <small>{definition.description}</small>
-                </div>
+                </button>
               );
             })}
           </div>
@@ -1219,10 +1567,16 @@ function RunModifiersPanel({ game }: { game: GameState }) {
               const definition = getVoucherDefinition(voucherId);
 
               return (
-                <div className="run-modifier-item" key={voucherId} title={`${definition.name}：${definition.description}`}>
+                <button
+                  type="button"
+                  className="run-modifier-item"
+                  key={voucherId}
+                  title={`${definition.name}：${definition.description}`}
+                  onClick={() => onInspect?.({ kind: 'voucher', definitionId: definition.id, source: '已购优惠券' })}
+                >
                   <strong>{definition.name}</strong>
                   <small>{definition.description}</small>
-                </div>
+                </button>
               );
             })}
           </div>
@@ -1512,12 +1866,12 @@ function SituationSummaryPanel({ game }: { game: GameState }) {
   );
 }
 
-function MobileSituationPanel({ game }: { game: GameState }) {
+function MobileSituationPanel({ game, onInspect }: { game: GameState; onInspect?: (target: InspectTarget) => void }) {
   return (
     <>
       <SituationSummaryPanel game={game} />
       <RulesPanel game={game} />
-      <RunModifiersPanel game={game} />
+      <RunModifiersPanel game={game} onInspect={onInspect} />
     </>
   );
 }
@@ -1565,7 +1919,8 @@ function MobileOverlaySheet({
   onClearRun,
   onExportBackup,
   onImportBackup,
-  importMessage
+  importMessage,
+  onInspect
 }: {
   activeOverlay: MobileOverlay;
   game: GameState;
@@ -1577,6 +1932,7 @@ function MobileOverlaySheet({
   onExportBackup: () => void;
   onImportBackup: (event: ChangeEvent<HTMLInputElement>) => void;
   importMessage: string | null;
+  onInspect: (target: InspectTarget) => void;
 }) {
   if (!activeOverlay) {
     return null;
@@ -1593,11 +1949,11 @@ function MobileOverlaySheet({
           </button>
         </header>
         <div className="mobile-sheet-body">
-          {activeOverlay === 'rules' && <MobileSituationPanel game={game} />}
+          {activeOverlay === 'rules' && <MobileSituationPanel game={game} onInspect={onInspect} />}
           {activeOverlay === 'deck' && (
             <>
-              <DeckPanel game={game} />
-              <DiscardPanel game={game} />
+              <DeckPanel game={game} onInspect={onInspect} />
+              <DiscardPanel game={game} onInspect={onInspect} />
             </>
           )}
           {activeOverlay === 'log' && (
@@ -1987,12 +2343,14 @@ function BlindSelection({
   game,
   disabled,
   onStart,
-  onSkip
+  onSkip,
+  onInspect
 }: {
   game: GameState;
   disabled: boolean;
   onStart: () => void;
   onSkip: () => void;
+  onInspect: (target: InspectTarget) => void;
 }) {
   const blinds = getBlindChoicesForState(game);
   const currentSkipTag = game.blindIndex < 2 ? getTagForBlind(game.seed, game.ante, game.blindIndex) : null;
@@ -2014,7 +2372,7 @@ function BlindSelection({
               <span>{stateLabel}</span>
               <h3>{blind.name}</h3>
               <p>{blind.description}</p>
-              {blind.bossId && <BossPreview bossId={blind.bossId} />}
+              {blind.bossId && <BossPreview bossId={blind.bossId} onInspect={onInspect} />}
               <div className="blind-meta">
                 <strong>{blind.targetScore}</strong>
                 <span>目标分</span>
@@ -2027,7 +2385,7 @@ function BlindSelection({
           );
         })}
       </div>
-      {currentSkipTag && <TagPreview tagId={currentSkipTag.id} />}
+      {currentSkipTag && <TagPreview tagId={currentSkipTag.id} onInspect={onInspect} />}
       <div className="action-row">
         {currentSkipTag && (
           <button type="button" className="secondary-action" disabled={disabled} onClick={onSkip}>
@@ -2057,12 +2415,12 @@ function getBossEffectLabel(effect: BossEffect): string {
   return '人头牌盖面';
 }
 
-function BossPreview({ bossId }: { bossId: string }) {
+function BossPreview({ bossId, onInspect }: { bossId: string; onInspect?: (target: InspectTarget) => void }) {
   const boss = getBossDefinition(bossId);
   const detail = `${boss.name}：${boss.description}。应对：${boss.advice}`;
 
   return (
-    <div className="boss-preview" title={detail}>
+    <button type="button" className="boss-preview" title={detail} onClick={() => onInspect?.({ kind: 'boss', definitionId: boss.id, source: 'Boss 预告' })}>
       <strong>{boss.name}</strong>
       <small>{boss.description}</small>
       <div className="boss-effect-list">
@@ -2071,19 +2429,19 @@ function BossPreview({ bossId }: { bossId: string }) {
         ))}
       </div>
       <em>{boss.advice}</em>
-    </div>
+    </button>
   );
 }
 
-function TagPreview({ tagId }: { tagId: string }) {
+function TagPreview({ tagId, onInspect }: { tagId: string; onInspect?: (target: InspectTarget) => void }) {
   const tag = getTagDefinition(tagId);
 
   return (
-    <div className="tag-preview" title={`${tag.name}：${tag.description}`}>
+    <button type="button" className="tag-preview" title={`${tag.name}：${tag.description}`} onClick={() => onInspect?.({ kind: 'tag', definitionId: tag.id, source: '跳过奖励' })}>
       <span>跳过奖励</span>
       <strong>{tag.name}</strong>
       <small>{tag.description}</small>
-    </div>
+    </button>
   );
 }
 
@@ -2157,12 +2515,14 @@ function PackChoiceModal({
   game,
   disabled,
   onChoosePack,
-  onSkipPack
+  onSkipPack,
+  onInspect
 }: {
   game: GameState;
   disabled: boolean;
   onChoosePack: (instanceId: string) => void;
   onSkipPack: () => void;
+  onInspect: (target: InspectTarget) => void;
 }) {
   if (game.packChoices.length === 0) {
     return null;
@@ -2188,19 +2548,24 @@ function PackChoiceModal({
             const blockedText = getPackChoiceBlockedText(choice, game);
 
             return (
-              <button
-                type="button"
-                className={`pack-choice ${choice.kind}`}
+              <article
+                className={`pack-choice ${choice.kind} ${disabled || blockedText ? 'disabled' : ''}`}
                 key={choice.instanceId}
                 title={getPackChoiceDetail(choice, index)}
-                disabled={disabled || Boolean(blockedText)}
-                onClick={() => onChoosePack(choice.instanceId)}
               >
                 <span>{index + 1}. {getPackChoiceLabel(choice)}</span>
                 <strong>{getPackChoiceTitle(choice)}</strong>
                 <small>{getPackChoiceDescription(choice)}</small>
                 {blockedText && <em>{blockedText}</em>}
-              </button>
+                <div className="pack-choice-actions">
+                  <button type="button" disabled={disabled || Boolean(blockedText)} onClick={() => onChoosePack(choice.instanceId)}>
+                    选择
+                  </button>
+                  <button type="button" className="secondary-action" onClick={() => onInspect(inspectTargetFromPackChoice(choice))}>
+                    详情
+                  </button>
+                </div>
+              </article>
             );
           })}
         </div>
@@ -2216,7 +2581,8 @@ function ShopView({
   onRefresh,
   onNext,
   onChoosePack,
-  onSkipPack
+  onSkipPack,
+  onInspect
 }: {
   game: GameState;
   disabled: boolean;
@@ -2225,6 +2591,7 @@ function ShopView({
   onNext: () => void;
   onChoosePack: (instanceId: string) => void;
   onSkipPack: () => void;
+  onInspect: (target: InspectTarget) => void;
 }) {
   const completedBlind = game.currentBlind;
   const shopLocked = disabled || game.packChoices.length > 0;
@@ -2266,6 +2633,12 @@ function ShopView({
             consumableSlotsFull={game.consumables.length >= game.consumableSlots}
             actionDisabled={shopLocked}
             onBuy={() => onBuy(offer.id)}
+            onInspect={() => {
+              const target = inspectTargetFromShopOffer(offer);
+              if (target) {
+                onInspect(target);
+              }
+            }}
           />
         ))}
       </div>
@@ -2283,7 +2656,7 @@ function ShopView({
           下一盲注
         </button>
       </div>
-      <PackChoiceModal game={game} disabled={disabled} onChoosePack={onChoosePack} onSkipPack={onSkipPack} />
+      <PackChoiceModal game={game} disabled={disabled} onChoosePack={onChoosePack} onSkipPack={onSkipPack} onInspect={onInspect} />
     </section>
   );
 }
@@ -2355,7 +2728,8 @@ function ShopOfferCard({
   jokerSlotsFull,
   consumableSlotsFull,
   actionDisabled,
-  onBuy
+  onBuy,
+  onInspect
 }: {
   offer: ShopItem;
   money: number;
@@ -2363,6 +2737,7 @@ function ShopOfferCard({
   consumableSlotsFull: boolean;
   actionDisabled: boolean;
   onBuy: () => void;
+  onInspect: () => void;
 }) {
   const offerDetail = getShopOfferDetail(offer);
   const actionBlockedReason = getActionBlockedReason(actionDisabled);
@@ -2392,7 +2767,12 @@ function ShopOfferCard({
         : '打开';
 
     return (
-      <article className={`shop-slot pack-offer ${definition.kind}`} title={offerDetail}>
+      <article className={`shop-slot pack-offer ${definition.kind}`} title={offerDetail} tabIndex={0} onClick={onInspect} onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          onInspect();
+        }
+      }}>
         <div className="joker-topline">
           <span className="rarity uncommon">补充包</span>
           <span>${offer.price}</span>
@@ -2401,7 +2781,14 @@ function ShopOfferCard({
         <p>{definition.description}</p>
         <small className="shop-hint">{offerHint}</small>
         {disabledReason && <em className="shop-blocked-reason">{disabledReason}</em>}
-        <button type="button" disabled={disabled} onClick={onBuy}>
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={(event) => {
+            event.stopPropagation();
+            onBuy();
+          }}
+        >
           {blockedLabel}
         </button>
       </article>
@@ -2426,7 +2813,12 @@ function ShopOfferCard({
             : null);
 
     return (
-      <article className={`shop-slot consumable-offer ${definition.kind}`} title={offerDetail}>
+      <article className={`shop-slot consumable-offer ${definition.kind}`} title={offerDetail} tabIndex={0} onClick={onInspect} onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          onInspect();
+        }
+      }}>
         <div className="joker-topline">
           <span className="rarity common">{getConsumableLabel(definition.id)}</span>
           <span>${offer.price}</span>
@@ -2435,7 +2827,14 @@ function ShopOfferCard({
         <p>{definition.description}</p>
         <small className="shop-hint">{offerHint}</small>
         {disabledReason && <em className="shop-blocked-reason">{disabledReason}</em>}
-        <button type="button" disabled={disabled} onClick={onBuy}>
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={(event) => {
+            event.stopPropagation();
+            onBuy();
+          }}
+        >
           {consumableSlotsFull ? '槽位已满' : money < offer.price ? '资金不足' : '购买'}
         </button>
       </article>
@@ -2448,7 +2847,12 @@ function ShopOfferCard({
     const disabledReason = actionBlockedReason ?? (money < offer.price ? `还差 $${offer.price - money}` : null);
 
     return (
-      <article className="shop-slot voucher-offer" title={offerDetail}>
+      <article className="shop-slot voucher-offer" title={offerDetail} tabIndex={0} onClick={onInspect} onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          onInspect();
+        }
+      }}>
         <div className="joker-topline">
           <span className="rarity rare">优惠券</span>
           <span>${offer.price}</span>
@@ -2457,7 +2861,14 @@ function ShopOfferCard({
         <p>{definition.description}</p>
         <small className="shop-hint">{offerHint}</small>
         {disabledReason && <em className="shop-blocked-reason">{disabledReason}</em>}
-        <button type="button" disabled={disabled} onClick={onBuy}>
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={(event) => {
+            event.stopPropagation();
+            onBuy();
+          }}
+        >
           {money < offer.price ? '资金不足' : '购买'}
         </button>
       </article>
@@ -2471,7 +2882,12 @@ function ShopOfferCard({
     (jokerSlotsFull ? '小丑槽位已满，先卖出一张' : money < offer.price ? `还差 $${offer.price - money}` : null);
 
   return (
-    <article className="shop-slot" title={offerDetail}>
+    <article className="shop-slot" title={offerDetail} tabIndex={0} onClick={onInspect} onKeyDown={(event) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        onInspect();
+      }
+    }}>
       <div className="joker-topline">
         <RarityLabel rarity={definition.rarity} />
         <span>${offer.price}</span>
@@ -2482,7 +2898,14 @@ function ShopOfferCard({
       <JokerTriggerDetails definition={definition} />
       <small className="shop-hint">{offerHint}</small>
       {disabledReason && <em className="shop-blocked-reason">{disabledReason}</em>}
-      <button type="button" disabled={disabled} onClick={onBuy}>
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={(event) => {
+          event.stopPropagation();
+          onBuy();
+        }}
+      >
         {jokerSlotsFull ? '槽位已满' : money < offer.price ? '资金不足' : '购买'}
       </button>
     </article>
@@ -2554,7 +2977,8 @@ function PlayView({
   onDiscard,
   onConfirmConsumable,
   onCancelConsumable,
-  onSortHand
+  onSortHand,
+  onInspectCard
 }: {
   game: GameState;
   selectedPreview: string;
@@ -2566,6 +2990,7 @@ function PlayView({
   onConfirmConsumable: () => void;
   onCancelConsumable: () => void;
   onSortHand: (mode: 'rank' | 'suit') => void;
+  onInspectCard: (card: Card, hidden: boolean) => void;
 }) {
   const activeConsumable = game.selectedConsumableId
     ? game.consumables.find((consumable) => consumable.instanceId === game.selectedConsumableId)
@@ -2589,6 +3014,20 @@ function PlayView({
             </button>
             <button type="button" className="secondary-action compact-action" title="按花色分组，并在每组内按点数排列" onClick={() => onSortHand('suit')}>
               按花色
+            </button>
+            <button
+              type="button"
+              className="secondary-action compact-action"
+              disabled={game.selectedCardIds.length === 0}
+              title="查看第一张已选手牌的详情"
+              onClick={() => {
+                const selectedCard = game.hand.find((card) => game.selectedCardIds.includes(card.id));
+                if (selectedCard) {
+                  onInspectCard(selectedCard, isCardHiddenByBoss(game, selectedCard));
+                }
+              }}
+            >
+              选牌详情
             </button>
           </div>
         </div>
@@ -2653,6 +3092,7 @@ export default function App() {
   const [pendingNewRunConfirm, setPendingNewRunConfirm] = useState(false);
   const [pendingImport, setPendingImport] = useState<PendingImport | null>(null);
   const [importMessage, setImportMessage] = useState<string | null>(null);
+  const [inspectTarget, setInspectTarget] = useState<InspectTarget | null>(null);
   const previousPhaseRef = useRef<GamePhase>(game.phase);
   const lockTimerRef = useRef<number | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -2731,6 +3171,7 @@ export default function App() {
 
   useEffect(() => {
     setActiveOverlay(null);
+    setInspectTarget(null);
   }, [game.phase]);
 
   useEffect(() => {
@@ -2973,6 +3414,12 @@ export default function App() {
       }
 
       const key = event.key.toLowerCase();
+
+      if (event.key === 'Escape' && inspectTarget) {
+        event.preventDefault();
+        setInspectTarget(null);
+        return;
+      }
 
       if (event.key === 'Escape' && pendingNewRunConfirm) {
         event.preventDefault();
@@ -3248,12 +3695,14 @@ export default function App() {
           game={game}
           onSell={(instanceId) => runGameAction('sell', (current) => sellJoker(current, instanceId), false)}
           onMove={(fromIndex, toIndex) => runGameAction('sort', (current) => moveJoker(current, fromIndex, toIndex), false)}
+          onInspect={setInspectTarget}
         />
 
         <ConsumableBar
           game={game}
           onUse={(instanceId) => runGameAction('buy', (current) => useConsumable(current, instanceId), false)}
           onCancel={() => runGameAction('error', (current) => cancelConsumableTarget(current), false)}
+          onInspect={setInspectTarget}
         />
 
         {game.phase === 'blind_select' && (
@@ -3262,6 +3711,7 @@ export default function App() {
             disabled={isUiLocked}
             onStart={() => runGameAction('start', (current) => startCurrentBlind(current))}
             onSkip={() => runGameAction('shop', (current) => skipCurrentBlind(current))}
+            onInspect={setInspectTarget}
           />
         )}
         {game.phase === 'playing' && (
@@ -3278,6 +3728,7 @@ export default function App() {
             onPlay={() => runGameAction('play', (current) => playSelectedCards(current))}
             onDiscard={() => runGameAction('discard', (current) => discardSelectedCards(current))}
             onSortHand={(mode) => runGameAction('sort', (current) => sortHand(current, mode), false)}
+            onInspectCard={(card, hidden) => setInspectTarget({ kind: 'playing_card', card, hidden, source: '已选手牌' })}
             onConfirmConsumable={() =>
               runGameAction(
                 'buy',
@@ -3297,6 +3748,7 @@ export default function App() {
             onNext={() => runGameAction('start', (current) => advanceFromShop(current))}
             onChoosePack={(instanceId) => runGameAction('pack', (current) => choosePackConsumable(current, instanceId))}
             onSkipPack={() => runGameAction('shop', (current) => skipPackChoice(current))}
+            onInspect={setInspectTarget}
           />
         )}
         {(game.phase === 'run_won' || game.phase === 'run_lost') && <OutcomeView game={game} disabled={isUiLocked} onRestart={() => restartRun()} />}
@@ -3304,12 +3756,12 @@ export default function App() {
 
       <aside className="side-panel desktop-side-panel">
         <SituationSummaryPanel game={game} />
-        <RunModifiersPanel game={game} />
+        <RunModifiersPanel game={game} onInspect={setInspectTarget} />
         <section>
           <h2>最近结算日志</h2>
           <ScoringLog game={game} detailed={profile.settings.showDetailedScoring} />
         </section>
-        <DeckPanel game={game} />
+        <DeckPanel game={game} onInspect={setInspectTarget} />
         <details className="side-details-panel">
           <summary>规则说明</summary>
           <RulesPanel game={game} />
@@ -3324,7 +3776,7 @@ export default function App() {
           onImportBackup={importBackup}
           importMessage={importMessage}
         />
-        <DiscardPanel game={game} />
+        <DiscardPanel game={game} onInspect={setInspectTarget} />
       </aside>
 
       <MobileBottomNav
@@ -3342,7 +3794,9 @@ export default function App() {
         onExportBackup={exportBackup}
         onImportBackup={importBackup}
         importMessage={importMessage}
+        onInspect={setInspectTarget}
       />
+      <DetailModal target={inspectTarget} onClose={() => setInspectTarget(null)} />
       {pendingImport && (
         <ImportConfirmDialog
           pendingImport={pendingImport}

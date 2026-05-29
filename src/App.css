@@ -748,6 +748,159 @@
   line-height: 1.45;
 }
 
+.detail-modal-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 110;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+}
+
+.detail-backdrop {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  min-height: 0;
+  border-radius: 0;
+  padding: 0;
+  background: rgba(0, 0, 0, 0.68);
+  cursor: default;
+}
+
+.detail-backdrop:hover {
+  transform: none;
+  filter: none;
+}
+
+.detail-modal {
+  position: relative;
+  z-index: 1;
+  width: min(560px, 100%);
+  max-height: min(82dvh, 680px);
+  overflow: auto;
+  border: 2px solid rgba(224, 167, 47, 0.62);
+  border-radius: 10px;
+  padding: 16px;
+  color: #f8fafc;
+  background:
+    linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+    linear-gradient(145deg, rgba(16, 21, 31, 0.98), rgba(7, 61, 50, 0.98));
+  background-size:
+    18px 18px,
+    auto;
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.55);
+}
+
+.detail-modal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 12px;
+}
+
+.detail-modal-header span,
+.detail-section span {
+  display: block;
+  color: var(--gold);
+  font-size: 0.76rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.detail-modal-header strong {
+  display: block;
+  margin-top: 4px;
+  color: #fff7e6;
+  font-size: clamp(1.45rem, 6vw, 2.4rem);
+  line-height: 1;
+}
+
+.detail-modal-body {
+  display: grid;
+  gap: 12px;
+  padding-top: 14px;
+}
+
+.detail-modal-body p {
+  margin: 0;
+  color: #d8e8df;
+  line-height: 1.5;
+}
+
+.detail-pill-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.detail-pill {
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 999px;
+  padding: 4px 8px;
+  color: #fff7e6;
+  background: rgba(255, 255, 255, 0.08);
+  font-size: 0.74rem;
+  font-weight: 900;
+}
+
+.detail-pill.timing,
+.detail-pill.planet {
+  border-color: rgba(88, 183, 255, 0.5);
+}
+
+.detail-pill.tarot,
+.detail-pill.spectral {
+  border-color: rgba(224, 167, 47, 0.52);
+}
+
+.detail-pill.bonus,
+.detail-pill.gold {
+  border-color: rgba(224, 167, 47, 0.58);
+}
+
+.detail-pill.mult,
+.detail-pill.glass {
+  border-color: rgba(188, 47, 61, 0.62);
+}
+
+.detail-pill.wild {
+  border-color: rgba(98, 224, 144, 0.58);
+}
+
+.detail-section {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px;
+  background: rgba(0, 0, 0, 0.18);
+}
+
+.detail-section strong {
+  display: block;
+  margin-top: 5px;
+  color: #fff7e6;
+  line-height: 1.35;
+}
+
+.detail-section small {
+  display: block;
+  margin-top: 6px;
+  color: #c8d5d0;
+  line-height: 1.4;
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.detail-effects {
+  margin-top: 8px;
+}
+
 .import-dialog {
   width: min(560px, 100%);
 }
@@ -1311,6 +1464,18 @@ button:disabled {
     border-color 180ms ease;
 }
 
+.joker-card:focus-visible,
+.consumable-card:focus-visible,
+.shop-slot:focus-visible,
+.run-modifier-item:focus-visible,
+.boss-preview:focus-visible,
+.tag-preview:focus-visible,
+.deck-mini-card:focus-visible,
+.discard-chip:focus-visible {
+  outline: 3px solid rgba(224, 167, 47, 0.72);
+  outline-offset: 3px;
+}
+
 .joker-card.triggered {
   border-color: var(--gold);
   animation: triggeredJoker var(--settle-duration, 650ms) ease both;
@@ -1466,6 +1631,7 @@ button:disabled {
   background:
     linear-gradient(150deg, rgba(233, 243, 255, 0.96), rgba(255, 247, 230, 0.92)),
     #f4f7fb;
+  cursor: pointer;
 }
 
 .consumable-card.tarot {
@@ -1635,11 +1801,21 @@ button:disabled {
 }
 
 .boss-preview {
+  width: 100%;
+  height: auto;
+  display: block;
   border: 1px solid rgba(188, 47, 61, 0.45);
   border-radius: 6px;
   margin: 10px 0;
   padding: 9px;
+  color: inherit;
+  text-align: left;
   background: rgba(188, 47, 61, 0.12);
+}
+
+.boss-preview:hover {
+  transform: translateY(-1px);
+  filter: none;
 }
 
 .boss-preview strong,
@@ -1686,12 +1862,21 @@ button:disabled {
 }
 
 .tag-preview {
+  width: 100%;
+  height: auto;
+  display: block;
   border: 1px solid rgba(224, 167, 47, 0.42);
   border-radius: 8px;
   padding: 10px;
+  text-align: left;
   background:
     linear-gradient(135deg, rgba(224, 167, 47, 0.14), rgba(18, 52, 43, 0.22)),
     rgba(0, 0, 0, 0.16);
+}
+
+.tag-preview:hover {
+  transform: translateY(-1px);
+  filter: none;
 }
 
 .tag-preview span,
@@ -1898,7 +2083,7 @@ button:disabled {
     #271a36;
 }
 
-.pack-choice:hover:not(:disabled) {
+.pack-choice:hover:not(.disabled) {
   transform: translateY(-3px);
   box-shadow: 0 16px 28px rgba(0, 0, 0, 0.24);
 }
@@ -1927,6 +2112,24 @@ button:disabled {
   font-size: 0.78rem;
   font-style: normal;
   font-weight: 900;
+}
+
+.pack-choice.disabled {
+  opacity: 0.72;
+}
+
+.pack-choice-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px;
+  width: 100%;
+  margin-top: auto;
+}
+
+.pack-choice-actions button {
+  min-height: 32px;
+  padding: 0 10px;
+  font-size: 0.78rem;
 }
 
 .shop-hint,
@@ -2339,6 +2542,7 @@ button:disabled {
 
 .log-cards span,
 .discard-list span,
+.discard-list .discard-chip,
 .modifier-row {
   border: 1px solid var(--line);
   border-radius: 6px;
@@ -2416,10 +2620,21 @@ button:disabled {
 }
 
 .run-modifier-item {
+  width: 100%;
+  height: auto;
+  min-height: 0;
   border: 1px solid var(--line);
   border-radius: 6px;
   padding: 8px;
+  text-align: left;
+  color: inherit;
   background: rgba(255, 255, 255, 0.06);
+}
+
+.run-modifier-item:hover {
+  border-color: rgba(224, 167, 47, 0.42);
+  transform: translateY(-1px);
+  filter: none;
 }
 
 .run-modifier-item strong,
@@ -2805,6 +3020,7 @@ button:disabled {
 
 .enhancement-counts span,
 .deck-mini-card {
+  min-height: 0;
   border: 1px solid var(--line);
   border-radius: 6px;
   padding: 5px 7px;
@@ -2812,6 +3028,19 @@ button:disabled {
   background: rgba(255, 255, 255, 0.08);
   font-size: 0.8rem;
   font-weight: 800;
+}
+
+.deck-mini-card,
+.discard-chip {
+  height: auto;
+  text-align: left;
+}
+
+.deck-mini-card:hover,
+.discard-chip:hover {
+  border-color: rgba(224, 167, 47, 0.52);
+  transform: translateY(-1px);
+  filter: none;
 }
 
 .deck-card-list {
@@ -3693,6 +3922,22 @@ button:disabled {
     scroll-snap-align: center;
   }
 
+  .detail-modal-layer {
+    align-items: end;
+    padding: 10px;
+  }
+
+  .detail-modal {
+    width: 100%;
+    max-height: min(78dvh, 680px);
+    border-radius: 12px 12px 8px 8px;
+    padding: 14px;
+  }
+
+  .detail-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
   .zone-header {
     flex-direction: column;
   }
@@ -4012,6 +4257,18 @@ button:disabled {
   .save-summary-grid,
   .storage-actions,
   .segmented-control {
+    grid-template-columns: 1fr;
+  }
+
+  .detail-modal-header {
+    flex-direction: column;
+  }
+
+  .detail-modal-header button {
+    width: 100%;
+  }
+
+  .detail-grid {
     grid-template-columns: 1fr;
   }
 

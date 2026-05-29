@@ -30,7 +30,8 @@ export const DEFAULT_SETTINGS: GameSettings = {
   animationSpeed: 1,
   showDetailedScoring: true,
   soundEnabled: true,
-  fastMode: false
+  fastMode: false,
+  tutorialDismissed: []
 };
 
 export function createDefaultProfile(): PersistentProfile {
@@ -84,7 +85,8 @@ function normalizeSettings(settings?: Partial<GameSettings>): GameSettings {
     animationSpeed: Math.max(0.25, Math.min(3, usePreset ? preset.animationSpeed : (settings?.animationSpeed ?? preset.animationSpeed))),
     showDetailedScoring: settings?.showDetailedScoring ?? DEFAULT_SETTINGS.showDetailedScoring,
     soundEnabled: settings?.soundEnabled ?? DEFAULT_SETTINGS.soundEnabled,
-    fastMode: usePreset ? preset.fastMode : (settings?.fastMode ?? preset.fastMode)
+    fastMode: usePreset ? preset.fastMode : (settings?.fastMode ?? preset.fastMode),
+    tutorialDismissed: unique(settings?.tutorialDismissed ?? DEFAULT_SETTINGS.tutorialDismissed)
   };
 }
 

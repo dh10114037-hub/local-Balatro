@@ -438,6 +438,7 @@ export type GameSettings = {
   showDetailedScoring: boolean;
   soundEnabled: boolean;
   fastMode: boolean;
+  tutorialDismissed: string[];
 };
 
 export type PersistentProfile = {

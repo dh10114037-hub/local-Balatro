@@ -901,6 +901,129 @@
   margin-top: 8px;
 }
 
+.tutorial-hint {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid rgba(224, 167, 47, 0.48);
+  border-radius: 8px;
+  padding: 10px 12px;
+  background:
+    linear-gradient(135deg, rgba(224, 167, 47, 0.16), rgba(8, 52, 44, 0.22)),
+    rgba(0, 0, 0, 0.18);
+  box-shadow: inset 0 0 0 1px rgba(255, 247, 230, 0.05);
+}
+
+.tutorial-marker {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(255, 247, 230, 0.35);
+  border-radius: 50%;
+  color: #172030;
+  background: var(--gold);
+  font-size: 1.15rem;
+  font-weight: 900;
+}
+
+.tutorial-hint span,
+.tutorial-hint small {
+  display: block;
+  color: var(--gold);
+  font-size: 0.72rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.tutorial-hint strong {
+  display: block;
+  margin-top: 2px;
+  color: #fff7e6;
+  font-size: 1rem;
+}
+
+.tutorial-hint p {
+  margin: 3px 0 0;
+  color: #d8e8df;
+  line-height: 1.35;
+}
+
+.tutorial-hint small {
+  margin-top: 4px;
+  color: #ffe5ad;
+  line-height: 1.3;
+  text-transform: none;
+}
+
+.tutorial-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.ghost-action {
+  border: 1px solid var(--line);
+  color: #d8e8df;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.tutorial-setting {
+  grid-template-columns: minmax(0, 1fr) auto auto;
+}
+
+.joker-card,
+.consumable-card,
+.shop-slot,
+.boss-preview,
+.tag-preview,
+.run-modifier-item,
+.deck-mini-card,
+.discard-chip {
+  position: relative;
+}
+
+.joker-card::before,
+.consumable-card::before,
+.shop-slot::before,
+.boss-preview::before,
+.tag-preview::before,
+.run-modifier-item::before {
+  content: "详情";
+  position: absolute;
+  top: -9px;
+  right: 8px;
+  z-index: 2;
+  border: 1px solid rgba(255, 247, 230, 0.28);
+  border-radius: 999px;
+  padding: 2px 6px;
+  color: #fff7e6;
+  background: rgba(16, 21, 31, 0.9);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.28);
+  font-size: 0.62rem;
+  font-weight: 900;
+  line-height: 1;
+  pointer-events: none;
+}
+
+.deck-mini-card::after,
+.discard-chip::after {
+  content: "i";
+  display: inline-grid;
+  place-items: center;
+  width: 14px;
+  height: 14px;
+  margin-left: 5px;
+  border-radius: 50%;
+  color: #172030;
+  background: var(--gold);
+  font-size: 0.64rem;
+  font-weight: 900;
+  line-height: 1;
+}
+
 .import-dialog {
   width: min(560px, 100%);
 }
@@ -3518,6 +3641,27 @@ button:disabled {
   .settlement-step {
     min-width: 0;
     scroll-snap-align: start;
+  }
+
+  .tutorial-hint {
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 8px;
+    padding: 8px;
+  }
+
+  .tutorial-marker {
+    width: 30px;
+    height: 30px;
+  }
+
+  .tutorial-actions {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .tutorial-actions button {
+    min-height: 34px;
   }
 
   .joker-bar,

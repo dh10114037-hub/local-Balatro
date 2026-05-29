@@ -98,6 +98,14 @@ type InspectTarget =
   | { kind: 'voucher'; definitionId: string; source?: string }
   | { kind: 'pack'; definitionId: string; source?: string }
   | { kind: 'spectral'; definitionId: string; source?: string };
+type TutorialTipId = 'blind_select' | 'playing' | 'selected_cards' | 'shop' | 'jokers' | 'consumables' | 'details';
+type TutorialTip = {
+  id: TutorialTipId;
+  title: string;
+  body: string;
+  action?: string;
+};
+const ALL_TUTORIAL_TIP_IDS: TutorialTipId[] = ['blind_select', 'playing', 'selected_cards', 'shop', 'jokers', 'consumables', 'details'];
 const SOUND_FREQUENCIES: Record<SoundKind, number> = {
   play: 520,
   discard: 240,
@@ -525,6 +533,108 @@ function DetailModal({ target, onClose }: { target: InspectTarget | null; onClos
         <div className="detail-modal-body">{body}</div>
       </article>
     </div>
+  );
+}
+
+function getActiveTutorialTip(game: GameState, profile: PersistentProfile): TutorialTip | null {
+  const dismissed = new Set(profile.settings.tutorialDismissed);
+  const candidates: TutorialTip[] = [];
+
+  if (game.phase === 'blind_select') {
+    candidates.push({
+      id: 'blind_select',
+      title: '先选择盲注',
+      body: '看清目标分、奖励和 Boss 规则。小盲/大盲可以跳过换标记，Boss 不能跳过。',
+      action: '点击 Boss 或跳过奖励可以查看详情。'
+    });
+  }
+
+  if (game.phase === 'playing' && game.selectedCardIds.length === 0) {
+    candidates.push({
+      id: 'playing',
+      title: '选择 1 到 5 张牌',
+      body: '目标是在有限出牌次数内达到盲注分数。选牌后会实时显示牌型和预计基础分。',
+      action: '先凑对子、同花或顺子会更稳定。'
+    });
+  }
+
+  if (game.phase === 'playing' && game.selectedCardIds.length > 0) {
+    candidates.push({
+      id: 'selected_cards',
+      title: '决定出牌或弃牌',
+      body: '出牌会结算分数，弃牌会换手牌但不加分。出牌和弃牌次数都很珍贵。',
+      action: '需要看牌面效果时，点“选牌详情”。'
+    });
+  }
+
+  if (game.phase === 'shop') {
+    candidates.push({
+      id: 'shop',
+      title: '商店是构筑核心',
+      body: '优先买能稳定加分的小丑，再考虑星球、塔罗和补充包。留钱会产生利息。',
+      action: '商品卡可点击查看完整效果。'
+    });
+  }
+
+  if (game.jokers.length > 0) {
+    candidates.push({
+      id: 'jokers',
+      title: '小丑从左到右触发',
+      body: '顺序会影响 +倍率 和 x倍率 的结果。拖拽或箭头可以调整位置。',
+      action: '点击小丑牌可查看触发条件、流派和卖出价值。'
+    });
+  }
+
+  if (game.consumables.length > 0) {
+    candidates.push({
+      id: 'consumables',
+      title: '消耗牌改变构筑',
+      body: '星球牌升级牌型，塔罗牌改造手牌或牌组。目标型消耗牌需要进入盲注后选择手牌。',
+      action: '点击消耗牌可以确认使用时机。'
+    });
+  }
+
+  candidates.push({
+    id: 'details',
+    title: '看到“详情”就可以点',
+    body: '小丑、商店商品、Boss、Tag、优惠券和牌组里的牌都能打开详情面板。',
+    action: '移动端不依赖 hover，直接点击查看。'
+  });
+
+  return candidates.find((candidate) => !dismissed.has(candidate.id)) ?? null;
+}
+
+function TutorialHint({
+  tip,
+  onDismiss,
+  onDismissAll
+}: {
+  tip: TutorialTip | null;
+  onDismiss: (id: TutorialTipId) => void;
+  onDismissAll: () => void;
+}) {
+  if (!tip) {
+    return null;
+  }
+
+  return (
+    <section className="tutorial-hint" aria-label="新手提示">
+      <div className="tutorial-marker">?</div>
+      <div>
+        <span>新手提示</span>
+        <strong>{tip.title}</strong>
+        <p>{tip.body}</p>
+        {tip.action && <small>{tip.action}</small>}
+      </div>
+      <div className="tutorial-actions">
+        <button type="button" className="secondary-action compact-action" onClick={() => onDismiss(tip.id)}>
+          知道了
+        </button>
+        <button type="button" className="ghost-action compact-action" onClick={onDismissAll}>
+          不再提示
+        </button>
+      </div>
+    </section>
   );
 }
 
@@ -1810,6 +1920,17 @@ function SettingsPanel({
         />
         <span>音效</span>
       </label>
+      <div className="setting-row tutorial-setting">
+        <span>新手提示</span>
+        <button
+          type="button"
+          className="secondary-action compact-action"
+          onClick={() => onChange(updateProfileSettings(profile, { tutorialDismissed: [] }))}
+        >
+          重新显示
+        </button>
+        <strong>{profile.settings.tutorialDismissed.length}/{ALL_TUTORIAL_TIP_IDS.length}</strong>
+      </div>
       <div className="publish-note compact">
         <span>版本 {APP_VERSION}</span>
         <p>线上版本使用本地浏览器存档，不包含账号、云同步、排行榜或多人功能。换设备前请先导出备份。</p>
@@ -3126,6 +3247,7 @@ export default function App() {
   }, [game, game.handLevels, selectedCards]);
   const progress = Math.min(100, Math.round((game.currentScore / game.targetScore) * 100));
   const currentBlind: BlindDefinition = game.currentBlind ?? getBlindForState(game);
+  const tutorialTip = useMemo(() => getActiveTutorialTip(game, profile), [game, profile]);
   const canAct =
     !isUiLocked && game.phase === 'playing' && game.status === 'playing' && game.selectedCardIds.length > 0 && !game.selectedConsumableId;
   const animationDuration = profile.settings.fastMode
@@ -3316,6 +3438,22 @@ export default function App() {
     const nextProfile = resetPersistentProfile();
     setProfile(nextProfile);
     setSetupStakeId(DEFAULT_STAKE_ID);
+  }
+
+  function dismissTutorialTip(id: TutorialTipId) {
+    setProfile((current) =>
+      updateProfileSettings(current, {
+        tutorialDismissed: [...current.settings.tutorialDismissed, id]
+      })
+    );
+  }
+
+  function dismissAllTutorialTips() {
+    setProfile((current) =>
+      updateProfileSettings(current, {
+        tutorialDismissed: ALL_TUTORIAL_TIP_IDS
+      })
+    );
   }
 
   function exportBackup() {
@@ -3688,6 +3826,8 @@ export default function App() {
         <div className="progress-track" aria-label={`进度 ${progress}%`}>
           <div className="progress-fill" style={{ width: `${progress}%` }} />
         </div>
+
+        <TutorialHint tip={tutorialTip} onDismiss={dismissTutorialTip} onDismissAll={dismissAllTutorialTips} />
 
         <SettlementTimeline game={game} fastMode={profile.settings.fastMode} />
 

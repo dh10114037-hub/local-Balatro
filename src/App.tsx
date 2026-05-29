@@ -2842,6 +2842,7 @@ function ShopView({
   const completedBlind = game.currentBlind;
   const shopLocked = disabled || game.packChoices.length > 0;
   const projectedInterest = calculateInterest(game.money);
+  const shopDecisionCards = getShopDecisionCards(game, shopLocked);
 
   return (
     <section className="stage-view shop-view">
@@ -2869,14 +2870,21 @@ function ShopView({
           <small>{game.packChoices.length > 0 ? '先选完补充包内容，才能刷新或进入下一盲注。' : '买、卖、刷新、保留钱都可取舍。'}</small>
         </div>
       </div>
+      <div className="shop-decision-strip" aria-label="商店决策提示">
+        {shopDecisionCards.map((card) => (
+          <div className={`shop-decision-card ${card.tone}`} key={card.label}>
+            <span>{card.label}</span>
+            <strong>{card.value}</strong>
+            <small>{card.detail}</small>
+          </div>
+        ))}
+      </div>
       <div className="shop-shelves">
         {game.shopOffers.map((offer) => (
           <ShopOfferCard
             key={offer.id}
             offer={offer}
-            money={game.money}
-            jokerSlotsFull={game.jokers.length >= game.jokerSlots}
-            consumableSlotsFull={game.consumables.length >= game.consumableSlots}
+            game={game}
             actionDisabled={shopLocked}
             onBuy={() => onBuy(offer.id)}
             onInspect={() => {
@@ -2931,7 +2939,7 @@ function getShopOfferDetail(offer: ShopItem): string {
   return `${definition.name}｜${JOKER_ARCHETYPE_LABELS[definition.archetypes[0] ?? 'general']}｜$${offer.price}｜${definition.description}｜${definition.triggerText}：${definition.conditionText}`;
 }
 
-function getShopOfferHint(offer: ShopItem, money: number): string {
+function getShopOfferHint(offer: ShopItem, game: GameState): string {
   if (!offer.definitionId) {
     return '未知商品';
   }
@@ -2957,63 +2965,302 @@ function getShopOfferHint(offer: ShopItem, money: number): string {
   const definition = getJokerDefinition(offer.definitionId);
   const archetype = JOKER_ARCHETYPE_LABELS[definition.archetypes[0] ?? 'general'];
   const moneyEffect = definition.effects.find((effect) => effect.type === 'money_add_mult');
-  if (moneyEffect?.type === 'money_add_mult' && money < moneyEffect.divisor) {
+  if (moneyEffect?.type === 'money_add_mult' && game.money < moneyEffect.divisor) {
     return `${archetype}流｜当前资金不足以触发`;
   }
 
   return `${archetype}流｜${definition.conditionText}`;
 }
 
-function getActionBlockedReason(actionDisabled: boolean): string | null {
-  return actionDisabled ? '先处理当前补充包或等待结算完成' : null;
+function getOwnedArchetypes(game: GameState): Set<JokerArchetype> {
+  const archetypes = new Set<JokerArchetype>();
+
+  game.jokers.forEach((joker) => {
+    getJokerDefinition(joker.definitionId).archetypes.forEach((archetype) => archetypes.add(archetype));
+  });
+
+  return archetypes;
+}
+
+function getUpgradedHandNames(game: GameState): string[] {
+  return POKER_HAND_ORDER.filter((hand) => game.handLevels[hand] > 1)
+    .map((hand) => HAND_SCORES[hand].name)
+    .slice(0, 3);
+}
+
+function getShopOfferBlockReason(offer: ShopItem, game: GameState, actionDisabled: boolean): string | null {
+  if (actionDisabled) {
+    return '先处理当前补充包或等待结算完成';
+  }
+
+  if (game.money < offer.price) {
+    return `还差 $${offer.price - game.money}`;
+  }
+
+  if (offer.kind === 'joker' && game.jokers.length >= game.jokerSlots) {
+    return '小丑槽位已满，先卖出一张';
+  }
+
+  if (offer.kind === 'consumable' && game.consumables.length >= game.consumableSlots) {
+    return '消耗牌槽位已满，先使用一张';
+  }
+
+  if (offer.kind === 'pack') {
+    const definition = getPackDefinition(offer.definitionId);
+
+    if (definition.kind === 'joker' && game.jokers.length >= game.jokerSlots) {
+      return '小丑槽位已满，先卖出一张';
+    }
+
+    if ((definition.kind === 'planet' || definition.kind === 'tarot') && game.consumables.length >= game.consumableSlots) {
+      return '消耗牌槽位已满';
+    }
+  }
+
+  return null;
+}
+
+function getShopOfferFlowNote(offer: ShopItem, game: GameState): string | null {
+  if (!offer.definitionId) {
+    return null;
+  }
+
+  if (offer.kind === 'joker') {
+    return game.jokers.length >= game.jokerSlots ? '需要腾出小丑槽后才能买。' : `购买后占用 1 个小丑槽，还剩 ${game.jokerSlots - game.jokers.length - 1} 个。`;
+  }
+
+  if (offer.kind === 'consumable') {
+    const definition = getConsumableDefinition(offer.definitionId);
+    return definition.target.mode === 'cards' ? '买下后进入盲注，再选择手牌目标。' : '买下后放入消耗牌槽，可直接使用。';
+  }
+
+  if (offer.kind === 'pack') {
+    const definition = getPackDefinition(offer.definitionId);
+    if (definition.kind === 'standard' || definition.kind === 'spectral') return '打开后进入选牌层，商店会暂时锁定。';
+    if (definition.kind === 'joker') return '打开后从候选小丑中选 1 张。';
+    return '打开后从候选消耗牌中选 1 张放入槽位。';
+  }
+
+  return '立即生效，不占用小丑或消耗牌槽。';
+}
+
+function getJokerBuildSignals(definition: ReturnType<typeof getJokerDefinition>, game: GameState): string[] {
+  const ownedArchetypes = getOwnedArchetypes(game);
+  const signals: string[] = [];
+  const overlappingArchetype = definition.archetypes.find((archetype) => archetype !== 'general' && ownedArchetypes.has(archetype));
+
+  if (overlappingArchetype) {
+    signals.push(`接上现有${JOKER_ARCHETYPE_LABELS[overlappingArchetype]}流`);
+  }
+
+  definition.effects.forEach((effect) => {
+    if ('hand' in effect && game.handLevels[effect.hand] > 1) {
+      signals.push(`${HAND_SCORES[effect.hand].name}已升级`);
+    }
+
+    if (effect.type === 'add_chips' || effect.type === 'hand_add_chips' || effect.type === 'scored_cards_add_chips' || effect.type === 'rank_add_chips') {
+      signals.push('稳定补筹码');
+    }
+
+    if (
+      effect.type === 'add_mult' ||
+      effect.type === 'hand_add_mult' ||
+      effect.type === 'scored_suit_add_mult' ||
+      effect.type === 'scored_face_add_mult' ||
+      effect.type === 'rank_add_mult' ||
+      effect.type === 'held_enhancement_add_mult' ||
+      effect.type === 'growth_hand_add_mult' ||
+      effect.type === 'remaining_discards_add_mult' ||
+      effect.type === 'first_hand_add_mult' ||
+      effect.type === 'money_add_mult' ||
+      effect.type === 'scored_cards_at_most_add_mult'
+    ) {
+      signals.push('提高 +Mult');
+    }
+
+    if (effect.type === 'multiply_mult' || effect.type === 'hand_multiply_mult' || effect.type === 'scored_enhancement_multiply_mult' || effect.type === 'last_hand_multiply_mult') {
+      signals.push('xMult 爆发');
+    }
+
+    if (effect.type === 'money_add_mult') {
+      const rawAmount = Math.floor(game.money / effect.divisor) * effect.amount;
+      const amount = effect.max === undefined ? rawAmount : Math.min(effect.max, rawAmount);
+      signals.push(amount > 0 ? `当前约 +${amount} 倍率` : `到 $${effect.divisor} 起动`);
+    }
+
+    if (effect.type === 'blind_clear_money' || effect.type === 'reroll_discount' || effect.type === 'sell_bonus_money') {
+      signals.push('改善商店经济');
+    }
+
+    if (effect.type === 'copy_right') {
+      signals.push('顺序敏感：看右侧');
+    }
+
+    if (effect.type === 'repeat_first_scored_card') {
+      signals.push('首张计分牌越大越好');
+    }
+
+    if (effect.type === 'scored_suit_add_chips' || effect.type === 'scored_suit_add_mult') {
+      signals.push(`需要${SUIT_NAMES[effect.suit]}计分`);
+    }
+
+    if (effect.type === 'scored_face_add_chips' || effect.type === 'scored_face_add_mult') {
+      signals.push('需要 J/Q/K 计分');
+    }
+  });
+
+  if (definition.growthOnHand) {
+    signals.push('越早买越能成长');
+  }
+
+  return [...new Set(signals)].slice(0, 4);
+}
+
+function getConsumableBuildSignals(definition: ReturnType<typeof getConsumableDefinition>, game: GameState): string[] {
+  const signals: string[] = [];
+
+  if (definition.effect.type === 'level_hand') {
+    signals.push(`升级${HAND_SCORES[definition.effect.hand].name}`);
+    if (game.handLevels[definition.effect.hand] > 1) {
+      signals.push('继续强化已有牌型');
+    }
+  }
+
+  if (definition.effect.type === 'change_suit') {
+    signals.push(`改成${SUIT_NAMES[definition.effect.suit]}`);
+    signals.push('支持同花/花色流');
+  }
+
+  if (definition.effect.type === 'change_rank') {
+    signals.push(`改成 ${definition.effect.rank}`);
+    signals.push('支持五条/指定点数');
+  }
+
+  if (definition.effect.type === 'copy_card') signals.push('复制核心牌');
+  if (definition.effect.type === 'destroy_card') signals.push('压缩牌组');
+  if (definition.effect.type === 'gain_money') signals.push(`立即 +$${definition.effect.amount}`);
+  if (definition.effect.type === 'enhance_card') signals.push(`制造${ENHANCEMENT_NAMES[definition.effect.enhancement]}`);
+
+  return signals.slice(0, 4);
+}
+
+function getPackBuildSignals(definition: ReturnType<typeof getPackDefinition>): string[] {
+  if (definition.kind === 'standard') return ['补牌/增强', '构筑牌堆'];
+  if (definition.kind === 'planet') return ['牌型升级', '稳定成长'];
+  if (definition.kind === 'tarot') return ['删牌/复制/改造', '支撑流派'];
+  if (definition.kind === 'joker') return ['找核心小丑', '满槽需腾位'];
+  return ['高风险高收益', '立即改变牌堆'];
+}
+
+function getVoucherBuildSignals(definition: ReturnType<typeof getVoucherDefinition>): string[] {
+  if (definition.effects.some((effect) => effect.type === 'extra_joker_slot')) return ['增加小丑上限', '放大构筑空间'];
+  if (definition.effects.some((effect) => effect.type === 'extra_consumable_slot')) return ['增加消耗牌槽', '更好存牌'];
+  if (definition.effects.some((effect) => effect.type === 'reroll_discount' || effect.type === 'shop_discount' || effect.type === 'pack_discount')) return ['降低商店压力'];
+  if (definition.effects.some((effect) => effect.type === 'extra_hand_per_blind' || effect.type === 'extra_discard_per_blind' || effect.type === 'extra_hand_size')) return ['提高操作容错'];
+  return ['长期收益', '立即生效'];
+}
+
+function getShopOfferBuildSignals(offer: ShopItem, game: GameState): string[] {
+  if (!offer.definitionId) {
+    return ['未知商品'];
+  }
+
+  if (offer.kind === 'joker') {
+    return getJokerBuildSignals(getJokerDefinition(offer.definitionId), game);
+  }
+
+  if (offer.kind === 'consumable') {
+    return getConsumableBuildSignals(getConsumableDefinition(offer.definitionId), game);
+  }
+
+  if (offer.kind === 'pack') {
+    return getPackBuildSignals(getPackDefinition(offer.definitionId));
+  }
+
+  return getVoucherBuildSignals(getVoucherDefinition(offer.definitionId));
+}
+
+function getShopDecisionCards(game: GameState, shopLocked: boolean) {
+  const buyableCount = game.shopOffers.filter((offer) => !getShopOfferBlockReason(offer, game, shopLocked)).length;
+  const currentInterest = calculateInterest(game.money);
+  const nextInterestAt = currentInterest >= MAX_INTEREST_PAYOUT ? null : (currentInterest + 1) * INTEREST_MONEY_STEP;
+  const upgradedHands = getUpgradedHandNames(game);
+
+  return [
+    {
+      label: '可买商品',
+      value: `${buyableCount}/${game.shopOffers.length}`,
+      detail: buyableCount > 0 ? '优先看能立即补强的牌。' : '可以卖小丑、保钱或进下一盲注。',
+      tone: buyableCount > 0 ? 'good' : 'warning'
+    },
+    {
+      label: '槽位压力',
+      value: `${game.jokers.length}/${game.jokerSlots} 小丑 · ${game.consumables.length}/${game.consumableSlots} 消耗`,
+      detail: game.jokers.length >= game.jokerSlots || game.consumables.length >= game.consumableSlots ? '满槽会阻止购买或开包。' : '还有空间继续构筑。',
+      tone: game.jokers.length >= game.jokerSlots || game.consumables.length >= game.consumableSlots ? 'warning' : 'neutral'
+    },
+    {
+      label: '利息取舍',
+      value: `$${currentInterest}`,
+      detail: nextInterestAt ? `保到 $${nextInterestAt} 可多拿 1 利息。` : '利息已到本局上限。',
+      tone: 'money'
+    },
+    {
+      label: '当前方向',
+      value: upgradedHands.length > 0 ? upgradedHands.join(' / ') : '未定型',
+      detail: upgradedHands.length > 0 ? '商店优先补强这些牌型。' : '小丑和星球会决定第一条路线。',
+      tone: upgradedHands.length > 0 ? 'good' : 'neutral'
+    }
+  ];
+}
+
+function ShopSignalList({ signals }: { signals: string[] }) {
+  if (signals.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="shop-signal-list" aria-label="构筑提示">
+      {signals.map((signal) => (
+        <span key={signal}>{signal}</span>
+      ))}
+    </div>
+  );
 }
 
 function ShopOfferCard({
   offer,
-  money,
-  jokerSlotsFull,
-  consumableSlotsFull,
+  game,
   actionDisabled,
   onBuy,
   onInspect
 }: {
   offer: ShopItem;
-  money: number;
-  jokerSlotsFull: boolean;
-  consumableSlotsFull: boolean;
+  game: GameState;
   actionDisabled: boolean;
   onBuy: () => void;
   onInspect: () => void;
 }) {
   const offerDetail = getShopOfferDetail(offer);
-  const actionBlockedReason = getActionBlockedReason(actionDisabled);
-  const offerHint = getShopOfferHint(offer, money);
+  const offerHint = getShopOfferHint(offer, game);
+  const buildSignals = getShopOfferBuildSignals(offer, game);
+  const flowNote = getShopOfferFlowNote(offer, game);
 
   if (offer.kind === 'pack') {
     const definition = getPackDefinition(offer.definitionId);
-    const slotBlocked =
-      (definition.kind === 'planet' || definition.kind === 'tarot') ? consumableSlotsFull : definition.kind === 'joker' ? jokerSlotsFull : false;
-    const disabled = actionDisabled || money < offer.price || slotBlocked;
-    const disabledReason =
-      actionBlockedReason ??
-      (definition.kind === 'joker' && jokerSlotsFull
-        ? '小丑槽位已满，先卖出一张'
-        : (definition.kind === 'planet' || definition.kind === 'tarot') && consumableSlotsFull
-          ? '消耗牌槽位已满'
-          : money < offer.price
-            ? `还差 $${offer.price - money}`
-            : null);
+    const disabledReason = getShopOfferBlockReason(offer, game, actionDisabled);
+    const disabled = Boolean(disabledReason);
     const blockedLabel =
-      definition.kind === 'joker' && jokerSlotsFull
+      definition.kind === 'joker' && game.jokers.length >= game.jokerSlots
         ? '先卖小丑'
-        : (definition.kind === 'planet' || definition.kind === 'tarot') && consumableSlotsFull
+        : (definition.kind === 'planet' || definition.kind === 'tarot') && game.consumables.length >= game.consumableSlots
         ? '槽位已满'
-        : money < offer.price
+        : game.money < offer.price
         ? '资金不足'
         : '打开';
 
     return (
-      <article className={`shop-slot pack-offer ${definition.kind}`} title={offerDetail} tabIndex={0} onClick={onInspect} onKeyDown={(event) => {
+      <article className={`shop-slot pack-offer ${definition.kind} ${disabled ? 'blocked' : 'buyable'}`} title={offerDetail} tabIndex={0} onClick={onInspect} onKeyDown={(event) => {
         if (event.key === 'Enter' || event.key === ' ') {
           event.preventDefault();
           onInspect();
@@ -3026,6 +3273,8 @@ function ShopOfferCard({
         <strong>{definition.name}</strong>
         <p>{definition.description}</p>
         <small className="shop-hint">{offerHint}</small>
+        <ShopSignalList signals={buildSignals} />
+        {flowNote && <em className="shop-flow-note">{flowNote}</em>}
         {disabledReason && <em className="shop-blocked-reason">{disabledReason}</em>}
         <button
           type="button"
@@ -3047,19 +3296,11 @@ function ShopOfferCard({
 
   if (offer.kind === 'consumable') {
     const definition = getConsumableDefinition(offer.definitionId);
-    const disabled = actionDisabled || money < offer.price || consumableSlotsFull;
-    const disabledReason =
-      actionBlockedReason ??
-      (consumableSlotsFull
-        ? '消耗牌槽位已满，先使用一张'
-        : money < offer.price
-          ? `还差 $${offer.price - money}`
-          : definition.target.mode === 'cards'
-            ? '购买后在盲注中选择手牌目标'
-            : null);
+    const disabledReason = getShopOfferBlockReason(offer, game, actionDisabled);
+    const disabled = Boolean(disabledReason);
 
     return (
-      <article className={`shop-slot consumable-offer ${definition.kind}`} title={offerDetail} tabIndex={0} onClick={onInspect} onKeyDown={(event) => {
+      <article className={`shop-slot consumable-offer ${definition.kind} ${disabled ? 'blocked' : 'buyable'}`} title={offerDetail} tabIndex={0} onClick={onInspect} onKeyDown={(event) => {
         if (event.key === 'Enter' || event.key === ' ') {
           event.preventDefault();
           onInspect();
@@ -3072,6 +3313,8 @@ function ShopOfferCard({
         <strong>{definition.name}</strong>
         <p>{definition.description}</p>
         <small className="shop-hint">{offerHint}</small>
+        <ShopSignalList signals={buildSignals} />
+        {flowNote && <em className="shop-flow-note">{flowNote}</em>}
         {disabledReason && <em className="shop-blocked-reason">{disabledReason}</em>}
         <button
           type="button"
@@ -3081,7 +3324,7 @@ function ShopOfferCard({
             onBuy();
           }}
         >
-          {consumableSlotsFull ? '槽位已满' : money < offer.price ? '资金不足' : '购买'}
+          {game.consumables.length >= game.consumableSlots ? '槽位已满' : game.money < offer.price ? '资金不足' : '购买'}
         </button>
       </article>
     );
@@ -3089,11 +3332,11 @@ function ShopOfferCard({
 
   if (offer.kind === 'voucher') {
     const definition = getVoucherDefinition(offer.definitionId);
-    const disabled = actionDisabled || money < offer.price;
-    const disabledReason = actionBlockedReason ?? (money < offer.price ? `还差 $${offer.price - money}` : null);
+    const disabledReason = getShopOfferBlockReason(offer, game, actionDisabled);
+    const disabled = Boolean(disabledReason);
 
     return (
-      <article className="shop-slot voucher-offer" title={offerDetail} tabIndex={0} onClick={onInspect} onKeyDown={(event) => {
+      <article className={`shop-slot voucher-offer ${disabled ? 'blocked' : 'buyable'}`} title={offerDetail} tabIndex={0} onClick={onInspect} onKeyDown={(event) => {
         if (event.key === 'Enter' || event.key === ' ') {
           event.preventDefault();
           onInspect();
@@ -3106,6 +3349,8 @@ function ShopOfferCard({
         <strong>{definition.name}</strong>
         <p>{definition.description}</p>
         <small className="shop-hint">{offerHint}</small>
+        <ShopSignalList signals={buildSignals} />
+        {flowNote && <em className="shop-flow-note">{flowNote}</em>}
         {disabledReason && <em className="shop-blocked-reason">{disabledReason}</em>}
         <button
           type="button"
@@ -3115,20 +3360,18 @@ function ShopOfferCard({
             onBuy();
           }}
         >
-          {money < offer.price ? '资金不足' : '购买'}
+          {game.money < offer.price ? '资金不足' : '购买'}
         </button>
       </article>
     );
   }
 
   const definition = getJokerDefinition(offer.definitionId);
-  const disabled = actionDisabled || money < offer.price || jokerSlotsFull;
-  const disabledReason =
-    actionBlockedReason ??
-    (jokerSlotsFull ? '小丑槽位已满，先卖出一张' : money < offer.price ? `还差 $${offer.price - money}` : null);
+  const disabledReason = getShopOfferBlockReason(offer, game, actionDisabled);
+  const disabled = Boolean(disabledReason);
 
   return (
-    <article className="shop-slot" title={offerDetail} tabIndex={0} onClick={onInspect} onKeyDown={(event) => {
+    <article className={`shop-slot ${disabled ? 'blocked' : 'buyable'}`} title={offerDetail} tabIndex={0} onClick={onInspect} onKeyDown={(event) => {
       if (event.key === 'Enter' || event.key === ' ') {
         event.preventDefault();
         onInspect();
@@ -3143,6 +3386,8 @@ function ShopOfferCard({
       <p>{definition.description}</p>
       <JokerTriggerDetails definition={definition} />
       <small className="shop-hint">{offerHint}</small>
+      <ShopSignalList signals={buildSignals} />
+      {flowNote && <em className="shop-flow-note">{flowNote}</em>}
       {disabledReason && <em className="shop-blocked-reason">{disabledReason}</em>}
       <button
         type="button"
@@ -3152,7 +3397,7 @@ function ShopOfferCard({
           onBuy();
         }}
       >
-        {jokerSlotsFull ? '槽位已满' : money < offer.price ? '资金不足' : '购买'}
+        {game.jokers.length >= game.jokerSlots ? '槽位已满' : game.money < offer.price ? '资金不足' : '购买'}
       </button>
     </article>
   );

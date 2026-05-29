@@ -2395,8 +2395,82 @@ button:disabled {
   line-height: 1.35;
 }
 
+.shop-decision-strip {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.shop-decision-card {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 9px;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.045), transparent 58%),
+    rgba(0, 0, 0, 0.18);
+}
+
+.shop-decision-card.good {
+  border-color: rgba(94, 224, 143, 0.34);
+}
+
+.shop-decision-card.warning {
+  border-color: rgba(220, 70, 84, 0.44);
+}
+
+.shop-decision-card.money {
+  border-color: rgba(224, 167, 47, 0.46);
+}
+
+.shop-decision-card span,
+.shop-decision-card small {
+  display: block;
+}
+
+.shop-decision-card span {
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 950;
+}
+
+.shop-decision-card strong {
+  display: block;
+  margin-top: 3px;
+  color: #fff7e6;
+  font-size: 0.92rem;
+  line-height: 1.1;
+}
+
+.shop-decision-card.good strong {
+  color: var(--chip);
+}
+
+.shop-decision-card.warning strong {
+  color: #ffd7db;
+}
+
+.shop-decision-card.money strong {
+  color: var(--gold);
+}
+
+.shop-decision-card small {
+  margin-top: 4px;
+  color: #c8d5d0;
+  font-size: 0.72rem;
+  font-weight: 800;
+  line-height: 1.3;
+}
+
 .shop-shelves {
   grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.shop-slot.buyable {
+  border-color: rgba(94, 224, 143, 0.26);
+}
+
+.shop-slot.blocked {
+  border-color: rgba(220, 70, 84, 0.3);
 }
 
 .consumable-offer,
@@ -2566,7 +2640,8 @@ button:disabled {
 }
 
 .shop-hint,
-.shop-blocked-reason {
+.shop-blocked-reason,
+.shop-flow-note {
   display: block;
   border-radius: 6px;
   padding: 6px 8px;
@@ -2578,6 +2653,29 @@ button:disabled {
 .shop-hint {
   color: #ffe5ad;
   background: rgba(224, 167, 47, 0.12);
+}
+
+.shop-signal-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.shop-signal-list span {
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  border-radius: 999px;
+  padding: 4px 7px;
+  color: #dfffe9;
+  background: rgba(94, 224, 143, 0.1);
+  font-size: 0.68rem;
+  font-weight: 950;
+  line-height: 1;
+}
+
+.shop-flow-note {
+  color: #d8e8df;
+  background: rgba(88, 183, 255, 0.12);
+  font-style: normal;
 }
 
 .shop-blocked-reason {
@@ -4329,6 +4427,19 @@ button:disabled {
 
   .shop-pressure-panel > div {
     min-width: 0;
+  }
+
+  .shop-decision-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 7px;
+  }
+
+  .shop-decision-card {
+    padding: 8px;
+  }
+
+  .shop-decision-card strong {
+    font-size: 0.82rem;
   }
 
   .shop-shelves {

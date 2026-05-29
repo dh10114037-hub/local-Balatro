@@ -282,9 +282,35 @@ function GameCard({
   );
 }
 
+const STAT_CLASS_BY_LABEL: Record<string, string> = {
+  层级: 'layer',
+  盲注: 'blind',
+  资金: 'money',
+  得分: 'score',
+  当前分: 'score',
+  目标: 'target',
+  出牌: 'hands',
+  弃牌: 'discards',
+  牌库: 'deck',
+  '出牌/弃牌': 'actions',
+  牌组总数: 'deck-total',
+  增强牌: 'enhancements',
+  牌型: 'hand',
+  计分牌: 'scored-cards',
+  最终: 'final',
+  最高层级: 'record',
+  无尽最高: 'record',
+  最高单手: 'record',
+  通关次数: 'record',
+  失败次数: 'record',
+  当前局: 'run'
+};
+
 function Stat({ label, value }: { label: string; value: ReactNode }) {
+  const className = STAT_CLASS_BY_LABEL[label] ? `stat stat-${STAT_CLASS_BY_LABEL[label]}` : 'stat';
+
   return (
-    <div className="stat">
+    <div className={className}>
       <span>{label}</span>
       <strong>{value}</strong>
     </div>
@@ -2185,11 +2211,14 @@ function SituationSummaryPanel({ game }: { game: GameState }) {
 
 function MobileSituationPanel({ game, onInspect }: { game: GameState; onInspect?: (target: InspectTarget) => void }) {
   return (
-    <>
+    <div className="mobile-situation-panel">
       <SituationSummaryPanel game={game} />
-      <RulesPanel game={game} />
       <RunModifiersPanel game={game} onInspect={onInspect} />
-    </>
+      <details className="mobile-rules-disclosure">
+        <summary>规则提示</summary>
+        <RulesPanel game={game} />
+      </details>
+    </div>
   );
 }
 

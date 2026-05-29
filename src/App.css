@@ -4136,10 +4136,25 @@ button:disabled {
     gap: 5px;
   }
 
+  .table-surface > .scoreboard {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+
+  .table-surface > .scoreboard .stat-layer,
+  .table-surface > .scoreboard .stat-blind,
+  .table-surface > .scoreboard .stat-deck {
+    display: none;
+  }
+
   .stat {
     min-height: 38px;
     padding: 5px;
     border-radius: 7px;
+  }
+
+  .table-surface > .scoreboard .stat {
+    min-height: 34px;
+    padding: 5px 4px;
   }
 
   .stat span,
@@ -4171,6 +4186,42 @@ button:disabled {
     font-size: clamp(2rem, 12vw, 3.4rem);
   }
 
+  .phase-playing .settlement-panel:not(.settlement-summary) {
+    gap: 6px;
+    padding: 7px;
+    border-color: rgba(224, 167, 47, 0.28);
+  }
+
+  .phase-playing .settlement-panel:not(.settlement-summary) .settlement-stage-track {
+    display: none;
+  }
+
+  .phase-playing .settlement-main {
+    min-height: 54px;
+    padding: 8px;
+  }
+
+  .phase-playing .settlement-main > span::after {
+    content: " · 详情见日志";
+    color: #c8d5d0;
+    font-weight: 800;
+    text-transform: none;
+  }
+
+  .phase-playing .settlement-main strong {
+    font-size: clamp(1.6rem, 9vw, 2.35rem);
+  }
+
+  .phase-playing .settlement-formula-strip {
+    gap: 4px;
+    margin-top: 6px;
+  }
+
+  .phase-playing .formula-chip {
+    padding: 4px 6px;
+    font-size: 0.66rem;
+  }
+
   .settlement-steps {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -4194,6 +4245,22 @@ button:disabled {
     grid-template-columns: auto minmax(0, 1fr);
     gap: 8px;
     padding: 8px;
+  }
+
+  .phase-playing .tutorial-hint {
+    gap: 6px;
+    padding: 6px 7px;
+  }
+
+  .phase-playing .tutorial-hint p {
+    display: -webkit-box;
+    overflow: hidden;
+    -webkit-line-clamp: 1;
+    -webkit-box-orient: vertical;
+  }
+
+  .phase-playing .tutorial-hint small {
+    display: none;
   }
 
   .tutorial-marker {
@@ -4885,6 +4952,26 @@ button:disabled {
     padding: 12px;
   }
 
+  .mobile-rules-disclosure {
+    border: 1px solid var(--line);
+    border-radius: 9px;
+    padding: 10px;
+    background: rgba(0, 0, 0, 0.18);
+  }
+
+  .mobile-rules-disclosure summary {
+    cursor: pointer;
+    color: var(--gold);
+    font-weight: 950;
+  }
+
+  .mobile-rules-disclosure .rules-panel {
+    margin-top: 10px;
+    border: 0;
+    padding: 0;
+    background: transparent;
+  }
+
   .mobile-sheet-body > section,
   .mobile-sheet-body .rules-panel,
   .mobile-sheet-body .mobile-situation-panel {
@@ -4896,6 +4983,12 @@ button:disabled {
   .mobile-sheet-body > section:last-child {
     margin-bottom: 0;
     border-bottom: 0;
+  }
+
+  .mobile-sheet-body .mobile-rules-disclosure .rules-panel {
+    margin-bottom: 0;
+    border-bottom: 0;
+    padding-bottom: 0;
   }
 
   .mobile-situation-grid {
@@ -4933,13 +5026,26 @@ button:disabled {
     gap: 5px;
   }
 
+  .table-surface > .scoreboard {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+
   .stat {
     min-height: 48px;
     padding: 6px;
   }
 
+  .table-surface > .scoreboard .stat {
+    min-height: 34px;
+    padding: 5px 3px;
+  }
+
   .stat strong {
     font-size: 0.95rem;
+  }
+
+  .table-surface > .scoreboard .stat strong {
+    font-size: clamp(0.7rem, 3.1vw, 0.9rem);
   }
 
   .shop-shelves {
@@ -4966,6 +5072,10 @@ button:disabled {
   .storage-actions,
   .segmented-control {
     grid-template-columns: 1fr;
+  }
+
+  .mobile-situation-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .detail-modal-header {

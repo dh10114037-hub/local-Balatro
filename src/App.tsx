@@ -1,4 +1,5 @@
 import { type ChangeEvent, type CSSProperties, type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import './App.css';
 import packageJson from '../package.json';
 import { MAX_ANTE } from './game/config/blinds';
@@ -2916,7 +2917,7 @@ function PackChoiceModal({
   const activePack = getPackDefinition(game.packChoices[0].packId);
   const blockedChoices = game.packChoices.filter((choice) => getPackChoiceBlockedText(choice, game)).length;
 
-  return (
+  return createPortal(
     <div className="pack-modal-layer" role="presentation">
       <div className={`pack-choice-panel pack-modal ${activePack.kind}`} role="dialog" aria-modal="true" aria-label={activePack.name}>
         <div className="pack-choice-heading">
@@ -2965,7 +2966,8 @@ function PackChoiceModal({
           })}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
@@ -3843,7 +3845,25 @@ export default function App() {
   }, [game.phase]);
 
   useEffect(() => {
+    if (appScreen !== 'game' || game.packChoices.length === 0) {
+      return;
+    }
+
+    setActiveOverlay(null);
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [appScreen, game.packChoices.length]);
+
+  useEffect(() => {
     if (appScreen !== 'game') {
+      return;
+    }
+
+    if (game.packChoices.length > 0) {
       return;
     }
 
@@ -3860,7 +3880,7 @@ export default function App() {
     });
 
     return () => window.cancelAnimationFrame(frame);
-  }, [appScreen, game.phase]);
+  }, [appScreen, game.phase, game.packChoices.length]);
 
   useEffect(
     () => () => {

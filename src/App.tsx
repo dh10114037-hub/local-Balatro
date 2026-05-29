@@ -241,12 +241,14 @@ function GameCard({
   selected,
   disabled,
   hidden,
+  targetState,
   onClick
 }: {
   card: Card;
   selected: boolean;
   disabled: boolean;
   hidden: boolean;
+  targetState?: 'eligible' | 'locked' | 'selected' | null;
   onClick: () => void;
 }) {
   const isRed = card.suit === 'hearts' || card.suit === 'diamonds';
@@ -257,10 +259,13 @@ function GameCard({
 
   return (
     <button
-      className={`game-card ${selected ? 'selected' : ''} ${isRed ? 'red-suit' : 'black-suit'} ${hidden ? 'hidden-card' : ''}`}
+      className={`game-card ${selected ? 'selected' : ''} ${isRed ? 'red-suit' : 'black-suit'} ${hidden ? 'hidden-card' : ''} ${
+        targetState ? `target-${targetState}` : ''
+      }`}
       type="button"
       aria-pressed={selected}
       data-detail={detail}
+      data-target-state={targetState ?? undefined}
       title={detail}
       disabled={disabled}
       onClick={onClick}
@@ -307,6 +312,71 @@ function getConsumableTargetText(definition: ReturnType<typeof getConsumableDefi
   }
 
   return `需要在盲注中选择 ${definition.target.min}-${definition.target.max} 张手牌作为目标。`;
+}
+
+function isConsumableTargetCountValid(definition: ReturnType<typeof getConsumableDefinition>, count: number): boolean {
+  return definition.target.mode === 'none' || (count >= definition.target.min && count <= definition.target.max);
+}
+
+function getConsumableTargetProgress(definition: ReturnType<typeof getConsumableDefinition>, count: number): { label: string; detail: string; valid: boolean } {
+  if (definition.target.mode === 'none') {
+    return { label: '无需目标', detail: '可以直接使用。', valid: true };
+  }
+
+  if (count < definition.target.min) {
+    return {
+      label: `还需 ${definition.target.min - count} 张`,
+      detail:
+        definition.target.min === definition.target.max
+          ? `必须正好选择 ${definition.target.min} 张目标牌。`
+          : `需要选择 ${definition.target.min} 到 ${definition.target.max} 张目标牌。`,
+      valid: false
+    };
+  }
+
+  if (count > definition.target.max) {
+    return { label: `多选 ${count - definition.target.max} 张`, detail: `最多只能选择 ${definition.target.max} 张目标牌。`, valid: false };
+  }
+
+  return {
+    label: '可以确认',
+    detail: count === definition.target.max ? '目标数量已达上限，可以使用。' : `还可以继续多选 ${definition.target.max - count} 张。`,
+    valid: true
+  };
+}
+
+function getConsumableEffectPreview(definition: ReturnType<typeof getConsumableDefinition>, selectedCards: Card[] = []): string {
+  const targetNames = selectedCards.length > 0 ? selectedCards.map((card) => formatCard(card)).join('、') : '所选目标';
+
+  if (definition.effect.type === 'level_hand') {
+    return `${HAND_SCORES[definition.effect.hand].name}等级 +1，之后这个牌型基础分更高。`;
+  }
+
+  if (definition.effect.type === 'change_suit') {
+    return `${targetNames}会变成${SUIT_NAMES[definition.effect.suit]}。`;
+  }
+
+  if (definition.effect.type === 'change_rank') {
+    return `${targetNames}会变成 ${definition.effect.rank}。`;
+  }
+
+  if (definition.effect.type === 'copy_card') {
+    return `${targetNames}会复制一张加入牌组。`;
+  }
+
+  if (definition.effect.type === 'destroy_card') {
+    return `${targetNames}会从牌组中删除。`;
+  }
+
+  if (definition.effect.type === 'gain_money') {
+    return `立即获得 $${definition.effect.amount}。`;
+  }
+
+  if (definition.effect.type === 'enhance_card') {
+    return `${targetNames}会变成${ENHANCEMENT_NAMES[definition.effect.enhancement]}。`;
+  }
+
+  return definition.description;
 }
 
 function inspectTargetFromShopOffer(offer: ShopItem): InspectTarget | null {
@@ -1499,6 +1569,7 @@ function ConsumableCard({
   onInspect: () => void;
 }) {
   const definition = getConsumableDefinition(consumable.definitionId);
+  const targetProgress = getConsumableTargetProgress(definition, selectedTargetCount);
   const actionLabel = active ? '确认使用' : disabledReason === '需要进入盲注后选择手牌目标' ? '盲注中使用' : definition.target.mode === 'none' ? '立即使用' : '选择目标';
   const targetText =
     definition.target.mode === 'cards'
@@ -1508,12 +1579,14 @@ function ConsumableCard({
       : '无需选择目标';
   const activeText =
     active && definition.target.mode === 'cards'
-      ? `当前已选 ${selectedTargetCount}/${definition.target.max}`
+      ? `当前已选 ${selectedTargetCount}/${definition.target.max}｜${targetProgress.label}`
       : targetText;
 
   return (
     <article
-      className={`consumable-card ${definition.kind} ${active ? 'active' : ''}`}
+      className={`consumable-card ${definition.kind} ${active ? 'active' : ''} ${
+        active && definition.target.mode === 'cards' ? (targetProgress.valid ? 'target-valid' : 'target-invalid') : ''
+      }`}
       title={`${definition.name}：${definition.description}。${targetText}`}
       tabIndex={0}
       onClick={onInspect}
@@ -1531,6 +1604,7 @@ function ConsumableCard({
       <h3>{definition.name}</h3>
       <p>{definition.description}</p>
       <small className="consumable-target-note">{activeText}</small>
+      <small className="consumable-effect-note">{getConsumableEffectPreview(definition)}</small>
       {disabledReason && <em className="disabled-reason">{disabledReason}</em>}
       <button
         type="button"
@@ -1562,6 +1636,7 @@ function ConsumableBar({
     ? game.consumables.find((consumable) => consumable.instanceId === game.selectedConsumableId)
     : null;
   const activeDefinition = activeConsumable ? getConsumableDefinition(activeConsumable.definitionId) : null;
+  const activeProgress = activeDefinition ? getConsumableTargetProgress(activeDefinition, game.selectedCardIds.length) : null;
 
   return (
     <section className={`consumable-bar ${game.consumables.length === 0 ? 'empty-bar' : ''}`} aria-label="消耗牌槽位">
@@ -1571,18 +1646,14 @@ function ConsumableBar({
           <strong>{game.consumables.length}/{game.consumableSlots}</strong>
         </div>
         {activeDefinition ? (
-          <div className="target-helper">
-            <span>
+          <div className={`target-helper ${activeProgress?.valid ? 'valid' : 'invalid'}`}>
+            <span>{activeDefinition.name}</span>
+            <strong>
               {activeDefinition.target.min === activeDefinition.target.max
                 ? `目标 ${game.selectedCardIds.length}/${activeDefinition.target.max}`
                 : `目标 ${game.selectedCardIds.length}/${activeDefinition.target.min}-${activeDefinition.target.max}`}
-            </span>
-            <small>
-              {game.selectedCardIds.length >= activeDefinition.target.min &&
-              game.selectedCardIds.length <= activeDefinition.target.max
-                ? '目标数量合法，可以确认使用。'
-                : '请选择合法数量的目标牌。'}
-            </small>
+            </strong>
+            <small>{activeProgress?.detail}</small>
             <button type="button" className="secondary-action compact-action" onClick={onCancel}>
               取消目标
             </button>
@@ -2757,6 +2828,45 @@ function getPackChoiceBlockedText(choice: PackChoice, game: GameState): string |
   return null;
 }
 
+function getPackChoiceFlowText(choice: PackChoice, game: GameState): string {
+  if (choice.kind === 'playing_card') {
+    return '选择后加入当前牌组，后续抽牌可能抽到它。';
+  }
+
+  if (choice.kind === 'consumable') {
+    const definition = getConsumableDefinition(choice.definitionId);
+    return definition.target.mode === 'cards' ? '进入消耗牌槽，之后在盲注中选择手牌目标。' : '进入消耗牌槽，可直接使用。';
+  }
+
+  if (choice.kind === 'joker') {
+    return game.jokers.length >= game.jokerSlots ? '小丑槽已满，先卖出后才能领取。' : `加入小丑槽，还剩 ${game.jokerSlots - game.jokers.length - 1} 个槽。`;
+  }
+
+  return '选择后立即生效，通常会强力改变牌组并带有代价。';
+}
+
+function getPackChoiceSignals(choice: PackChoice, game: GameState): string[] {
+  if (choice.kind === 'playing_card') {
+    const signals = [`${SUIT_NAMES[choice.card.suit]} ${choice.card.rank}`];
+    if (choice.card.enhancement) {
+      signals.push(ENHANCEMENT_NAMES[choice.card.enhancement]);
+    } else {
+      signals.push('普通牌');
+    }
+    return signals;
+  }
+
+  if (choice.kind === 'consumable') {
+    return getConsumableBuildSignals(getConsumableDefinition(choice.definitionId), game);
+  }
+
+  if (choice.kind === 'joker') {
+    return getJokerBuildSignals(getJokerDefinition(choice.definitionId), game);
+  }
+
+  return ['高风险高收益', '立即生效'];
+}
+
 function PackChoiceModal({
   game,
   disabled,
@@ -2775,6 +2885,7 @@ function PackChoiceModal({
   }
 
   const activePack = getPackDefinition(game.packChoices[0].packId);
+  const blockedChoices = game.packChoices.filter((choice) => getPackChoiceBlockedText(choice, game)).length;
 
   return (
     <div className="pack-modal-layer" role="presentation">
@@ -2789,9 +2900,16 @@ function PackChoiceModal({
             跳过
           </button>
         </div>
+        <div className="pack-choice-guide" aria-label="开包提示">
+          <span>候选 {game.packChoices.length} 张</span>
+          <span>{blockedChoices > 0 ? `${blockedChoices} 张暂不可选` : '全部可选'}</span>
+          <span>键盘 1-9 选择，Esc 跳过</span>
+        </div>
         <div className="pack-choice-row">
           {game.packChoices.map((choice, index) => {
             const blockedText = getPackChoiceBlockedText(choice, game);
+            const choiceSignals = getPackChoiceSignals(choice, game);
+            const flowText = getPackChoiceFlowText(choice, game);
 
             return (
               <article
@@ -2802,6 +2920,8 @@ function PackChoiceModal({
                 <span>{index + 1}. {getPackChoiceLabel(choice)}</span>
                 <strong>{getPackChoiceTitle(choice)}</strong>
                 <small>{getPackChoiceDescription(choice)}</small>
+                <ShopSignalList signals={choiceSignals} />
+                <em className="pack-choice-flow">{flowText}</em>
                 {blockedText && <em>{blockedText}</em>}
                 <div className="pack-choice-actions">
                   <button type="button" disabled={disabled || Boolean(blockedText)} onClick={() => onChoosePack(choice.instanceId)}>
@@ -3189,9 +3309,14 @@ function getShopDecisionCards(game: GameState, shopLocked: boolean) {
   return [
     {
       label: '可买商品',
-      value: `${buyableCount}/${game.shopOffers.length}`,
-      detail: buyableCount > 0 ? '优先看能立即补强的牌。' : '可以卖小丑、保钱或进下一盲注。',
-      tone: buyableCount > 0 ? 'good' : 'warning'
+      value: game.packChoices.length > 0 ? '开包中' : `${buyableCount}/${game.shopOffers.length}`,
+      detail:
+        game.packChoices.length > 0
+          ? '先完成当前补充包选择。'
+          : buyableCount > 0
+            ? '优先看能立即补强的牌。'
+            : '可以卖小丑、保钱或进下一盲注。',
+      tone: buyableCount > 0 && game.packChoices.length === 0 ? 'good' : 'warning'
     },
     {
       label: '槽位压力',
@@ -3488,6 +3613,12 @@ function PlayView({
     : null;
   const activeDefinition = activeConsumable ? getConsumableDefinition(activeConsumable.definitionId) : null;
   const selectionLimit = activeDefinition?.target.max ?? getBossSelectionLimit(game) ?? 5;
+  const selectedTargetCards = activeDefinition ? getSelectedCards(game) : [];
+  const targetProgress = activeDefinition ? getConsumableTargetProgress(activeDefinition, game.selectedCardIds.length) : null;
+  const targetCountValid = activeDefinition ? isConsumableTargetCountValid(activeDefinition, game.selectedCardIds.length) : false;
+  const targetPreview = activeDefinition ? getConsumableEffectPreview(activeDefinition, selectedTargetCards) : '';
+  const targetSelectedLabel =
+    selectedTargetCards.length > 0 ? selectedTargetCards.map((card) => formatCard(card)).join('、') : '还没有选择目标牌';
 
   return (
     <section className="play-zone">
@@ -3525,10 +3656,19 @@ function PlayView({
       </div>
 
       {activeDefinition && (
-        <div className="target-banner">
-          <p>{activeDefinition.description}</p>
+        <div className={`target-banner ${targetCountValid ? 'valid' : 'invalid'}`}>
+          <div>
+            <span>目标选择模式</span>
+            <strong>{targetProgress?.label}</strong>
+            <p>{activeDefinition.description}</p>
+          </div>
+          <div className="target-preview-grid">
+            <small>目标牌：{targetSelectedLabel}</small>
+            <small>结果预览：{targetPreview}</small>
+            <small>{targetProgress?.detail}</small>
+          </div>
           <div className="action-row">
-            <button type="button" onClick={onConfirmConsumable}>
+            <button type="button" disabled={!targetCountValid} onClick={onConfirmConsumable}>
               确认使用
             </button>
             <button type="button" className="secondary-action" onClick={onCancelConsumable}>
@@ -3539,16 +3679,23 @@ function PlayView({
       )}
 
       <div className="hand-row" aria-label="手牌">
-        {game.hand.map((card) => (
-          <GameCard
-            key={card.id}
-            card={card}
-            selected={game.selectedCardIds.includes(card.id)}
-            disabled={game.phase !== 'playing'}
-            hidden={isCardHiddenByBoss(game, card)}
-            onClick={() => onToggleCard(card.id)}
-          />
-        ))}
+        {game.hand.map((card) => {
+          const selected = game.selectedCardIds.includes(card.id);
+          const lockedByTargetLimit = Boolean(activeDefinition && !selected && game.selectedCardIds.length >= selectionLimit);
+          const targetState = activeDefinition ? (selected ? 'selected' : lockedByTargetLimit ? 'locked' : 'eligible') : null;
+
+          return (
+            <GameCard
+              key={card.id}
+              card={card}
+              selected={selected}
+              disabled={game.phase !== 'playing' || lockedByTargetLimit}
+              hidden={isCardHiddenByBoss(game, card)}
+              targetState={targetState}
+              onClick={() => onToggleCard(card.id)}
+            />
+          );
+        })}
       </div>
 
       <div className="action-row">

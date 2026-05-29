@@ -3140,6 +3140,10 @@ button:disabled {
   line-height: 1.3;
 }
 
+.mobile-shop-action-row {
+  display: none;
+}
+
 .secondary-action {
   color: #f8fafc;
   background: rgba(255, 255, 255, 0.16);
@@ -4688,7 +4692,7 @@ button:disabled {
 
   .shop-view {
     justify-content: flex-start;
-    padding-bottom: calc(var(--mobile-nav-height) + 16px);
+    padding-bottom: calc(var(--mobile-nav-height) + 92px);
   }
 
   .shop-pressure-panel {
@@ -4915,6 +4919,35 @@ button:disabled {
     border-top: 0;
     background: transparent;
     backdrop-filter: none;
+  }
+
+  .phase-shop .shop-view > .action-row {
+    display: none;
+  }
+
+  .mobile-shop-action-row {
+    position: fixed;
+    left: 16px;
+    right: 16px;
+    bottom: calc(var(--mobile-nav-height) + 8px);
+    z-index: 50;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 7px;
+    border: 1px solid rgba(224, 167, 47, 0.58);
+    border-radius: 8px;
+    padding: 8px;
+    background:
+      linear-gradient(135deg, rgba(20, 36, 43, 0.96), rgba(5, 57, 47, 0.96)),
+      #10151f;
+    box-shadow: 0 -14px 36px rgba(0, 0, 0, 0.38);
+    backdrop-filter: blur(12px);
+  }
+
+  .mobile-shop-action-row button {
+    min-height: 42px;
+    padding-inline: 8px;
+    font-size: 0.84rem;
   }
 
   .play-zone .target-banner {
@@ -5510,6 +5543,10 @@ button:disabled {
   }
 
   .target-action-row {
+    bottom: calc(var(--mobile-nav-height) + 8px);
+  }
+
+  .mobile-shop-action-row {
     bottom: calc(var(--mobile-nav-height) + 8px);
   }
 }

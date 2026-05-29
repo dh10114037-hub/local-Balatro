@@ -3061,6 +3061,23 @@ function ShopView({
           下一盲注
         </button>
       </div>
+      {createPortal(
+        <div className="action-row mobile-shop-action-row">
+          <button
+            className="secondary-action"
+            type="button"
+            disabled={shopLocked || game.money < game.shopRerollCost}
+            title="花费资金刷新所有商店商品，之后刷新费用会提高"
+            onClick={onRefresh}
+          >
+            刷新 ${game.shopRerollCost}
+          </button>
+          <button type="button" disabled={shopLocked} title="保留当前构筑，进入下一次盲注选择" onClick={onNext}>
+            下一盲注
+          </button>
+        </div>,
+        document.body
+      )}
       <PackChoiceModal game={game} disabled={disabled} onChoosePack={onChoosePack} onSkipPack={onSkipPack} onInspect={onInspect} />
     </section>
   );

@@ -74,6 +74,62 @@
   }
 }
 
+@keyframes stageIgnite {
+  0% {
+    opacity: 0;
+    transform: translateY(16px) scale(0.96);
+    filter: saturate(0.7);
+  }
+
+  48% {
+    opacity: 1;
+    transform: translateY(-4px) scale(1.02);
+    filter: saturate(1.18);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: saturate(1);
+  }
+}
+
+@keyframes xMultKick {
+  0%,
+  100% {
+    transform: translateY(0) scale(1);
+    text-shadow: 0 0 0 rgba(255, 207, 90, 0);
+  }
+
+  42% {
+    transform: translateY(-3px) scale(1.1) rotate(-1deg);
+    text-shadow:
+      0 0 10px rgba(255, 207, 90, 0.82),
+      0 0 22px rgba(220, 70, 84, 0.38);
+  }
+}
+
+@keyframes finalScoreBurst {
+  0% {
+    transform: scale(0.92);
+    text-shadow: 0 0 0 rgba(224, 167, 47, 0);
+  }
+
+  52% {
+    transform: scale(1.08);
+    text-shadow:
+      0 0 14px rgba(224, 167, 47, 0.95),
+      0 0 34px rgba(88, 183, 255, 0.42);
+  }
+
+  100% {
+    transform: scale(1);
+    text-shadow:
+      0 0 7px rgba(224, 167, 47, 0.34),
+      0 0 18px rgba(0, 0, 0, 0.44);
+  }
+}
+
 @keyframes homeCardFloat {
   0%,
   100% {
@@ -1312,7 +1368,7 @@ button:disabled {
 
 .settlement-panel {
   display: grid;
-  grid-template-columns: minmax(150px, 0.35fr) minmax(0, 1.65fr);
+  grid-template-columns: minmax(170px, 0.34fr) minmax(0, 1.66fr);
   gap: 10px;
   border: 1px solid rgba(224, 167, 47, 0.36);
   border-radius: 8px;
@@ -1334,7 +1390,8 @@ button:disabled {
 }
 
 .settlement-main,
-.settlement-step {
+.settlement-step,
+.settlement-stage-card {
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 10px;
@@ -1342,7 +1399,8 @@ button:disabled {
 }
 
 .settlement-main span,
-.settlement-step span {
+.settlement-step span,
+.settlement-stage-card span {
   display: block;
   color: var(--muted);
   font-size: 0.78rem;
@@ -1357,24 +1415,84 @@ button:disabled {
   line-height: 0.95;
 }
 
+.settlement-score-burst {
+  transform-origin: left center;
+  animation: finalScoreBurst calc(var(--settle-duration, 650ms) * 0.95) ease both;
+}
+
+.settlement-formula-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.formula-chip,
+.formula-operator {
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 950;
+  line-height: 1;
+}
+
+.formula-chip {
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  padding: 6px 8px;
+  color: #fff7e6;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.formula-chip.chips {
+  border-color: rgba(94, 224, 143, 0.48);
+  color: #dfffe9;
+  background: rgba(94, 224, 143, 0.12);
+}
+
+.formula-chip.mult {
+  border-color: rgba(88, 183, 255, 0.5);
+  color: #dcefff;
+  background: rgba(88, 183, 255, 0.13);
+}
+
+.formula-chip.score {
+  border-color: rgba(224, 167, 47, 0.66);
+  color: #ffe7a6;
+  background: rgba(224, 167, 47, 0.18);
+}
+
+.formula-operator {
+  color: var(--gold);
+}
+
 .settlement-steps {
   display: grid;
   grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 8px;
 }
 
-.settlement-step {
-  opacity: 0;
-  animation: settlePulse calc(var(--settle-duration, 650ms) * 0.8) ease forwards;
+.settlement-stage-track {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
 }
 
-.settlement-step strong {
+.settlement-step,
+.settlement-stage-card {
+  opacity: 0;
+  animation: stageIgnite calc(var(--settle-duration, 650ms) * 0.88) ease forwards;
+  animation-delay: calc(var(--settle-duration, 650ms) * 0.105 * var(--stage-index, 0));
+}
+
+.settlement-step strong,
+.settlement-stage-card strong {
   display: block;
   margin-top: 5px;
   color: #fff7e6;
 }
 
-.settlement-step small {
+.settlement-step small,
+.settlement-stage-card small {
   display: block;
   margin-top: 5px;
   color: #c8d5d0;
@@ -1404,7 +1522,190 @@ button:disabled {
   border-color: rgba(224, 167, 47, 0.46);
 }
 
-.settlement-panel.fast .settlement-step {
+.settlement-stage-card {
+  position: relative;
+  overflow: hidden;
+  min-width: 0;
+  background:
+    linear-gradient(160deg, rgba(255, 255, 255, 0.055), transparent 46%),
+    rgba(0, 0, 0, 0.2);
+}
+
+.settlement-stage-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.5;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.07), transparent);
+  transform: translateX(-105%);
+  animation: cardDeal calc(var(--settle-duration, 650ms) * 0.8) ease both;
+  animation-delay: calc(var(--settle-duration, 650ms) * (0.11 * var(--stage-index, 0) + 0.18));
+}
+
+.settlement-stage-head {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.settlement-stage-head .stage-order {
+  display: grid;
+  place-items: center;
+  width: 25px;
+  height: 25px;
+  border: 1px solid rgba(255, 247, 230, 0.18);
+  border-radius: 6px;
+  color: #10151f;
+  background: var(--gold);
+  font-size: 0.78rem;
+  box-shadow: inset 0 -3px 0 rgba(0, 0, 0, 0.18);
+}
+
+.settlement-stage-head div {
+  min-width: 0;
+}
+
+.settlement-stage-head strong {
+  overflow: hidden;
+  margin-top: 2px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.settlement-stage-head em {
+  align-self: start;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  padding: 3px 6px;
+  color: #d8e6df;
+  background: rgba(255, 255, 255, 0.06);
+  font-size: 0.66rem;
+  font-style: normal;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.settlement-stage-badges {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 10px;
+}
+
+.stage-badge {
+  min-width: 54px;
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  border-radius: 7px;
+  padding: 6px 7px;
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.stage-badge small,
+.stage-badge strong {
+  margin: 0;
+  line-height: 1;
+}
+
+.stage-badge small {
+  color: rgba(255, 247, 230, 0.68);
+  font-size: 0.62rem;
+}
+
+.stage-badge strong {
+  margin-top: 5px;
+  font-size: 0.98rem;
+}
+
+.stage-badge.chips {
+  border-color: rgba(94, 224, 143, 0.42);
+  background: rgba(94, 224, 143, 0.1);
+}
+
+.stage-badge.chips strong {
+  color: var(--chip);
+}
+
+.stage-badge.mult {
+  border-color: rgba(88, 183, 255, 0.48);
+  background: rgba(88, 183, 255, 0.11);
+}
+
+.stage-badge.mult strong {
+  color: var(--mult);
+}
+
+.stage-badge.factor {
+  border-color: rgba(255, 207, 90, 0.66);
+  background:
+    linear-gradient(135deg, rgba(255, 207, 90, 0.2), rgba(220, 70, 84, 0.1)),
+    rgba(255, 207, 90, 0.12);
+  animation: xMultKick calc(var(--settle-duration, 650ms) * 0.9) ease both;
+  animation-delay: calc(var(--settle-duration, 650ms) * (0.1 * var(--stage-index, 0) + 0.18));
+}
+
+.stage-badge.factor strong {
+  color: var(--xmult);
+  font-size: 1.08rem;
+}
+
+.stage-badge.score {
+  border-color: rgba(224, 167, 47, 0.7);
+  background: rgba(224, 167, 47, 0.16);
+}
+
+.stage-badge.score strong {
+  color: var(--gold);
+}
+
+.stage-badge.quiet strong {
+  color: var(--muted);
+}
+
+.settlement-stage-after {
+  position: relative;
+  z-index: 1;
+  min-height: 32px;
+}
+
+.settlement-stage-card .timeline-event-list,
+.settlement-stage-card .timeline-empty {
+  position: relative;
+  z-index: 1;
+}
+
+.settlement-stage-card.impact-chips {
+  border-color: rgba(94, 224, 143, 0.34);
+}
+
+.settlement-stage-card.impact-mult {
+  border-color: rgba(88, 183, 255, 0.36);
+}
+
+.settlement-stage-card.impact-factor {
+  border-color: rgba(255, 207, 90, 0.56);
+  box-shadow: inset 0 0 24px rgba(255, 207, 90, 0.08);
+}
+
+.settlement-stage-card.impact-score {
+  border-color: rgba(224, 167, 47, 0.62);
+  box-shadow: inset 0 0 30px rgba(224, 167, 47, 0.1);
+}
+
+.settlement-stage-card.impact-rule {
+  border-color: rgba(220, 70, 84, 0.42);
+}
+
+.settlement-panel.fast .settlement-step,
+.settlement-panel.fast .settlement-stage-card,
+.settlement-panel.fast .settlement-stage-card::before,
+.settlement-panel.fast .settlement-score-burst,
+.settlement-panel.fast .stage-badge.factor {
   opacity: 1;
   animation: none;
 }
@@ -1463,7 +1764,16 @@ button:disabled {
 
 .event-chip.factor {
   border-color: rgba(224, 167, 47, 0.58);
-  background: rgba(224, 167, 47, 0.14);
+  color: var(--xmult);
+  background:
+    linear-gradient(135deg, rgba(255, 207, 90, 0.2), rgba(220, 70, 84, 0.08)),
+    rgba(224, 167, 47, 0.14);
+  animation-name: xMultKick;
+}
+
+.event-chip.factor em {
+  color: var(--xmult);
+  font-weight: 950;
 }
 
 .event-chip.score {
@@ -3253,6 +3563,7 @@ button:disabled {
   .pack-choice-row,
   .deck-summary,
   .settlement-steps,
+  .settlement-stage-track,
   .segmented-control,
   .storage-actions {
     grid-template-columns: 1fr;
@@ -3638,7 +3949,12 @@ button:disabled {
     scroll-snap-type: none;
   }
 
-  .settlement-step {
+  .settlement-stage-track {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .settlement-step,
+  .settlement-stage-card {
     min-width: 0;
     scroll-snap-align: start;
   }
@@ -4665,6 +4981,10 @@ button:disabled {
 .fast-mode .event-chip,
 .fast-mode .modifier-row,
 .fast-mode .settlement-step,
+.fast-mode .settlement-stage-card,
+.fast-mode .settlement-stage-card::before,
+.fast-mode .settlement-score-burst,
+.fast-mode .stage-badge.factor,
 .fast-mode .ui-locked .stat {
   animation: none;
 }

@@ -793,6 +793,119 @@ function getEventClass(event: ScoringEvent): string {
   return 'trigger';
 }
 
+type SettlementImpact = 'hand' | 'chips' | 'mult' | 'factor' | 'rule' | 'score' | 'quiet';
+
+const SETTLEMENT_STAGE_DEFINITIONS: Array<{
+  id: ScoringEvent['stage'];
+  title: string;
+  shortTitle: string;
+  emptyText: string;
+  className: string;
+}> = [
+  { id: 'hand', title: '牌型基础', shortTitle: '牌型', emptyText: '无牌型', className: 'hand-type' },
+  { id: 'scored_card', title: '计分牌', shortTitle: '计分', emptyText: '无计分牌', className: 'cards' },
+  { id: 'enhancement', title: '增强牌', shortTitle: '增强', emptyText: '无增强', className: 'enhancements' },
+  { id: 'joker', title: '小丑触发', shortTitle: '小丑', emptyText: '无小丑触发', className: 'jokers' },
+  { id: 'rule', title: '规则修正', shortTitle: '规则', emptyText: '无修正', className: 'rules' },
+  { id: 'final', title: '最终爆分', shortTitle: '最终', emptyText: '等待最终分', className: 'final' }
+];
+
+function formatFactor(value: number): string {
+  const rounded = Number(value.toFixed(3));
+  return String(rounded);
+}
+
+function sumEventValues(events: ScoringEvent[], key: 'chipsDelta' | 'multDelta'): number {
+  return events.reduce((total, event) => total + (event[key] ?? 0), 0);
+}
+
+function multiplyEventFactors(events: ScoringEvent[]): number {
+  return events.reduce((total, event) => total * (event.multFactor ?? 1), 1);
+}
+
+function getStageImpact(stage: ScoringEvent['stage'], events: ScoringEvent[]): SettlementImpact {
+  if (stage === 'hand') {
+    return 'hand';
+  }
+
+  if (stage === 'final') {
+    return 'score';
+  }
+
+  if (events.some((event) => event.multFactor !== undefined)) {
+    return 'factor';
+  }
+
+  if (events.some((event) => event.multDelta !== undefined)) {
+    return 'mult';
+  }
+
+  if (events.some((event) => event.chipsDelta !== undefined)) {
+    return 'chips';
+  }
+
+  if (stage === 'rule' && events.length > 0) {
+    return 'rule';
+  }
+
+  return 'quiet';
+}
+
+function getStageBadges(stage: ScoringEvent['stage'], events: ScoringEvent[], log: GameScoringLog) {
+  const chipsTotal = sumEventValues(events, 'chipsDelta');
+  const multTotal = sumEventValues(events, 'multDelta');
+  const factorTotal = multiplyEventFactors(events);
+
+  if (stage === 'hand') {
+    return [
+      { className: 'chips', label: '筹码', value: `${log.baseChips}` },
+      { className: 'mult', label: '倍率', value: `${log.baseMult}` }
+    ];
+  }
+
+  if (stage === 'final') {
+    return [
+      { className: 'chips', label: '筹码', value: `${log.finalChips}` },
+      { className: 'mult', label: '倍率', value: `${log.finalMult}` },
+      { className: 'score', label: '得分', value: `${log.finalScore}` }
+    ];
+  }
+
+  const badges: Array<{ className: string; label: string; value: string }> = [];
+
+  if (chipsTotal !== 0) {
+    badges.push({ className: 'chips', label: '筹码', value: `${chipsTotal > 0 ? '+' : ''}${chipsTotal}` });
+  }
+
+  if (multTotal !== 0) {
+    badges.push({ className: 'mult', label: '+倍率', value: `${multTotal > 0 ? '+' : ''}${multTotal}` });
+  }
+
+  if (factorTotal !== 1) {
+    badges.push({ className: 'factor', label: 'x倍率', value: `×${formatFactor(factorTotal)}` });
+  }
+
+  return badges;
+}
+
+function getStageAfterText(stage: ScoringEvent['stage'], events: ScoringEvent[], log: GameScoringLog): string {
+  if (stage === 'final') {
+    return describeFinalFormula(log);
+  }
+
+  const lastEventWithTotals = [...events].reverse().find((event) => event.chipsAfter !== undefined || event.multAfter !== undefined);
+
+  if (lastEventWithTotals?.chipsAfter !== undefined && lastEventWithTotals.multAfter !== undefined) {
+    return `阶段后 ${lastEventWithTotals.chipsAfter} 筹码 × ${lastEventWithTotals.multAfter} 倍率`;
+  }
+
+  if (stage === 'hand') {
+    return `基础 ${log.baseChips} 筹码 × ${log.baseMult} 倍率`;
+  }
+
+  return events.length > 0 ? '已记录触发，无数值变化' : '本阶段无触发';
+}
+
 function EventChipList({ events, emptyText = '无触发' }: { events: ScoringEvent[]; emptyText?: string }) {
   if (events.length === 0) {
     return <span className="timeline-empty">{emptyText}</span>;
@@ -831,10 +944,19 @@ function SettlementTimeline({
   const events = getScoringEvents(log);
   const handEvent = events.find((event) => event.stage === 'hand');
   const cardEvents = events.filter((event) => event.stage === 'scored_card');
-  const enhancementEvents = events.filter((event) => event.stage === 'enhancement');
-  const jokerEvents = events.filter((event) => event.stage === 'joker');
-  const ruleEvents = events.filter((event) => event.stage === 'rule');
   const cardChips = cardEvents.reduce((total, event) => total + (event.chipsDelta ?? 0), 0);
+  const stageEvents = SETTLEMENT_STAGE_DEFINITIONS.map((definition, index) => {
+    const sectionEvents = events.filter((event) => event.stage === definition.id);
+
+    return {
+      ...definition,
+      index,
+      events: sectionEvents,
+      impact: getStageImpact(definition.id, sectionEvents),
+      badges: getStageBadges(definition.id, sectionEvents, log),
+      afterText: getStageAfterText(definition.id, sectionEvents, log)
+    };
+  });
 
   if (game.phase === 'shop') {
     return (
@@ -857,49 +979,52 @@ function SettlementTimeline({
   return (
     <section className={`settlement-panel ${fastMode ? 'fast' : ''}`} aria-label="结算动画">
       <div className="settlement-main">
-        <span>本手结算</span>
-        <strong>
+        <span>本手爆分</span>
+        <strong className="settlement-score-burst">
           <AnimatedNumber value={log.finalScore} enabled={!fastMode} duration={520} />
         </strong>
+        <div className="settlement-formula-strip" aria-label="最终公式">
+          <span className="formula-chip chips">{log.finalChips} 筹码</span>
+          <span className="formula-operator">×</span>
+          <span className="formula-chip mult">{log.finalMult} 倍率</span>
+          <span className="formula-operator">=</span>
+          <span className="formula-chip score">{log.finalScore}</span>
+        </div>
       </div>
-      <div className="settlement-steps">
-        <div className="settlement-step hand-type">
-          <span>牌型</span>
-          <strong>{handEvent?.label ?? log.handName}</strong>
-          <small>
-            <AnimatedNumber value={log.baseChips} enabled={!fastMode} duration={420} /> 筹码 ×{' '}
-            <AnimatedNumber value={log.baseMult} enabled={!fastMode} duration={420} /> 倍率
-          </small>
-        </div>
-        <div className="settlement-step cards">
-          <span>计分牌</span>
-          <strong>+{cardChips}</strong>
-          <EventChipList events={cardEvents} emptyText="无计分牌" />
-        </div>
-        <div className="settlement-step enhancements">
-          <span>增强牌</span>
-          <strong>{enhancementEvents.length}</strong>
-          <EventChipList events={enhancementEvents} />
-        </div>
-        <div className="settlement-step jokers">
-          <span>小丑</span>
-          <strong>{jokerEvents.length}</strong>
-          <EventChipList events={jokerEvents} />
-        </div>
-        <div className="settlement-step rules">
-          <span>规则修正</span>
-          <strong>{ruleEvents.length}</strong>
-          <EventChipList events={ruleEvents} />
-        </div>
-        <div className="settlement-step final">
-          <span>最终</span>
-          <strong>
-            <AnimatedNumber value={log.finalScore} enabled={!fastMode} duration={520} />
-          </strong>
-          <small>
-            {log.finalChips} 筹码 × {log.finalMult} 倍率
-          </small>
-        </div>
+      <div className="settlement-stage-track">
+        {stageEvents.map((stage) => (
+          <article
+            key={stage.id}
+            className={`settlement-stage-card ${stage.className} impact-${stage.impact}`}
+            style={{ '--stage-index': stage.index } as CSSProperties}
+          >
+            <div className="settlement-stage-head">
+              <span className="stage-order">{stage.index + 1}</span>
+              <div>
+                <span>{stage.shortTitle}</span>
+                <strong>{stage.id === 'hand' ? (handEvent?.label ?? log.handName) : stage.title}</strong>
+              </div>
+              <em>{stage.events.length > 0 ? `${stage.events.length} 次` : '无'}</em>
+            </div>
+            <div className="settlement-stage-badges">
+              {stage.badges.length > 0 ? (
+                stage.badges.map((badge) => (
+                  <span className={`stage-badge ${badge.className}`} key={`${stage.id}-${badge.className}-${badge.value}`}>
+                    <small>{badge.label}</small>
+                    <strong>{badge.value}</strong>
+                  </span>
+                ))
+              ) : (
+                <span className="stage-badge quiet">
+                  <small>结果</small>
+                  <strong>未改变</strong>
+                </span>
+              )}
+            </div>
+            <small className="settlement-stage-after">{stage.afterText}</small>
+            <EventChipList events={stage.events} emptyText={stage.emptyText} />
+          </article>
+        ))}
       </div>
     </section>
   );

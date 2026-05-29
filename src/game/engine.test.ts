@@ -642,6 +642,36 @@ describe('P3 shop pressure', () => {
     expect(advanced.phase).toBe('shop');
     expect(advanced.message).toContain('先从补充包里选择');
   });
+
+  it('guarantees an affordable starter joker in the first small-blind shop only', () => {
+    const started = startCurrentBlind(createInitialGame('first-shop-safety-net'));
+    const reward = started.currentBlind?.reward ?? 0;
+    const openedShop = playSelectedCards(
+      toggleCardSelection(
+        {
+          ...started,
+          money: -reward,
+          targetScore: 1
+        },
+        started.hand[0].id
+      )
+    );
+    const affordableStarter = openedShop.shopOffers.find(
+      (offer) => offer.kind === 'joker' && ['chip_starter', 'mult_starter'].includes(offer.definitionId ?? '') && offer.price <= openedShop.money
+    );
+
+    expect(openedShop.phase).toBe('shop');
+    expect(openedShop.money).toBe(0);
+    expect(affordableStarter).toBeDefined();
+
+    const refreshed = refreshShop({
+      ...openedShop,
+      shopRerollCost: 0
+    });
+
+    expect(refreshed.shopRefreshCount).toBe(1);
+    expect(refreshed.shopOffers.every((offer) => !offer.id.includes('first-shop'))).toBe(true);
+  });
 });
 
 describe('P3 consumables and deck modification', () => {
@@ -1204,10 +1234,20 @@ describe('P5 long-term systems', () => {
     expect(greenBlind.targetScore).toBeGreaterThan(whiteBlind.targetScore);
     expect(greenBlind.reward).toBeLessThan(whiteBlind.reward);
 
-    const whiteStarted = startCurrentBlind(createInitialGame('stake-shop', { stakeId: 'white' }));
-    const whiteShop = playSelectedCards(toggleCardSelection({ ...whiteStarted, targetScore: 1 }, whiteStarted.hand[0].id));
-    const greenStarted = startCurrentBlind(createInitialGame('stake-shop', { stakeId: 'green' }));
-    const greenShop = playSelectedCards(toggleCardSelection({ ...greenStarted, targetScore: 1 }, greenStarted.hand[0].id));
+    const whiteShop = refreshShop({
+      ...createInitialGame('stake-shop', { stakeId: 'white' }),
+      phase: 'shop' as const,
+      money: 20,
+      shopRerollCost: 0,
+      shopRefreshCount: 0
+    });
+    const greenShop = refreshShop({
+      ...createInitialGame('stake-shop', { stakeId: 'green' }),
+      phase: 'shop' as const,
+      money: 20,
+      shopRerollCost: 0,
+      shopRefreshCount: 0
+    });
 
     expect(greenShop.shopOffers[0].definitionId).toBe(whiteShop.shopOffers[0].definitionId);
     expect(greenShop.shopOffers[0].price).toBeGreaterThan(whiteShop.shopOffers[0].price);

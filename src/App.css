@@ -129,7 +129,7 @@
   background-size:
     100% 4px,
     auto;
-  opacity: 0.28;
+  opacity: 0.18;
   mix-blend-mode: overlay;
 }
 
@@ -611,6 +611,20 @@
   min-width: 0;
 }
 
+.choice-stack {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.featured-choice {
+  min-height: 96px;
+}
+
+.secondary-options .setup-choice {
+  min-height: 86px;
+}
+
 .stake-choice-row {
   display: flex;
   gap: 10px;
@@ -1030,6 +1044,17 @@ button:disabled {
   background:
     linear-gradient(135deg, rgba(224, 167, 47, 0.16), rgba(7, 61, 50, 0.2)),
     rgba(0, 0, 0, 0.2);
+}
+
+.settlement-panel.settlement-summary {
+  grid-template-columns: minmax(150px, 0.42fr) minmax(0, 1fr);
+  align-items: stretch;
+}
+
+.settlement-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
 }
 
 .settlement-main,
@@ -1482,6 +1507,15 @@ button:disabled {
   font-weight: 900;
 }
 
+.disabled-reason {
+  display: block;
+  color: #6f4d00;
+  font-size: 0.74rem;
+  font-style: normal;
+  font-weight: 900;
+  line-height: 1.25;
+}
+
 .consumable-card button {
   width: 100%;
   min-height: 34px;
@@ -1767,6 +1801,28 @@ button:disabled {
   background: rgba(224, 167, 47, 0.1);
 }
 
+.pack-modal-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 95;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(0, 0, 0, 0.68);
+}
+
+.pack-choice-panel.pack-modal {
+  width: min(920px, 100%);
+  max-height: min(82dvh, 720px);
+  overflow: auto;
+  border-width: 2px;
+  border-color: rgba(224, 167, 47, 0.72);
+  background:
+    linear-gradient(145deg, rgba(18, 25, 36, 0.98), rgba(8, 52, 44, 0.98)),
+    #10151f;
+  box-shadow: 0 28px 80px rgba(0, 0, 0, 0.52);
+}
+
 .pack-choice-heading {
   display: flex;
   align-items: flex-start;
@@ -1873,6 +1929,27 @@ button:disabled {
   font-weight: 900;
 }
 
+.shop-hint,
+.shop-blocked-reason {
+  display: block;
+  border-radius: 6px;
+  padding: 6px 8px;
+  font-size: 0.76rem;
+  font-weight: 900;
+  line-height: 1.25;
+}
+
+.shop-hint {
+  color: #ffe5ad;
+  background: rgba(224, 167, 47, 0.12);
+}
+
+.shop-blocked-reason {
+  color: #ffd7db;
+  background: rgba(188, 47, 61, 0.16);
+  font-style: normal;
+}
+
 .outcome-view {
   align-items: flex-start;
   justify-content: center;
@@ -1884,6 +1961,15 @@ button:disabled {
 
 .outcome-view.lost {
   border-color: rgba(188, 47, 61, 0.75);
+}
+
+.outcome-advice {
+  border: 1px solid rgba(224, 167, 47, 0.42);
+  border-radius: 8px;
+  padding: 10px;
+  color: #fff7e6;
+  background: rgba(224, 167, 47, 0.12);
+  font-weight: 900;
 }
 
 .outcome-score strong {
@@ -2140,6 +2226,28 @@ button:disabled {
   padding-bottom: 18px;
 }
 
+.situation-summary-panel .progress-track {
+  margin-top: 10px;
+}
+
+.side-details-panel {
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 18px;
+}
+
+.side-details-panel summary {
+  cursor: pointer;
+  color: var(--gold);
+  font-size: 1rem;
+  font-weight: 900;
+}
+
+.side-details-panel .rules-panel {
+  margin-top: 12px;
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
 .current-task {
   border: 1px solid rgba(224, 167, 47, 0.42);
   border-radius: 8px;
@@ -2170,6 +2278,11 @@ button:disabled {
 
 .side-panel section:last-child {
   border-bottom: 0;
+}
+
+.side-details-panel .rules-panel {
+  border-bottom: 0;
+  padding-bottom: 0;
 }
 
 .mobile-bottom-nav,
@@ -2857,14 +2970,14 @@ button:disabled {
   }
 
   .deck-choice-grid {
-    display: flex;
-    grid-template-columns: none;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
     gap: 10px;
     width: 100%;
     min-width: 0;
-    overflow-x: auto;
-    padding-bottom: 6px;
-    scroll-snap-type: x proximity;
+    overflow: visible;
+    padding-bottom: 0;
+    scroll-snap-type: none;
   }
 
   .setup-choice {
@@ -2872,17 +2985,20 @@ button:disabled {
   }
 
   .deck-choice-grid .setup-choice {
-    flex: 0 0 min(78vw, 260px);
+    flex: initial;
     scroll-snap-align: start;
   }
 
   .stake-choice-row .setup-choice {
-    flex-basis: min(58vw, 190px);
+    flex-basis: auto;
   }
 
   .stake-choice-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
     width: 100%;
     min-width: 0;
+    overflow: visible;
   }
 
   .seed-config-panel {
@@ -3513,6 +3629,7 @@ button:disabled {
 
   .shop-view {
     justify-content: flex-start;
+    padding-bottom: calc(var(--mobile-nav-height) + 16px);
   }
 
   .shop-pressure-panel {
@@ -3546,12 +3663,12 @@ button:disabled {
     line-height: 1.35;
   }
 
-  .pack-choice-panel {
-    position: fixed;
-    left: 12px;
-    right: 12px;
-    bottom: calc(var(--mobile-nav-height) + 14px);
-    z-index: 50;
+  .pack-choice-panel.pack-modal {
+    position: relative;
+    left: auto;
+    right: auto;
+    bottom: auto;
+    z-index: 1;
     max-height: min(74dvh, 620px);
     overflow: auto;
     border-width: 2px;
@@ -3559,27 +3676,29 @@ button:disabled {
     background:
       linear-gradient(145deg, rgba(18, 25, 36, 0.98), rgba(8, 52, 44, 0.98)),
       #10151f;
-    box-shadow:
-      0 0 0 999px rgba(0, 0, 0, 0.55),
-      0 24px 60px rgba(0, 0, 0, 0.45);
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
   }
 
   .pack-choice-row {
-    display: flex;
-    grid-template-columns: none;
-    overflow-x: auto;
-    padding-bottom: 6px;
-    scroll-snap-type: x mandatory;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
+    overflow: visible;
+    padding-bottom: 0;
+    scroll-snap-type: none;
   }
 
   .pack-choice {
-    flex: 0 0 min(70vw, 220px);
+    flex: initial;
     min-height: 178px;
     scroll-snap-align: center;
   }
 
   .zone-header {
     flex-direction: column;
+  }
+
+  .play-zone {
+    padding-bottom: calc(var(--mobile-nav-height) + 14px);
   }
 
   .zone-tools,
@@ -3918,6 +4037,14 @@ button:disabled {
     margin-bottom: 2px;
   }
 
+  .home-screen::after {
+    display: none;
+  }
+
+  .home-screen::before {
+    opacity: 0.1;
+  }
+
   .home-screen .menu-hero h1 {
     font-size: clamp(2.15rem, 12vw, 3.35rem);
     line-height: 0.9;
@@ -4064,6 +4191,20 @@ button:disabled {
     min-height: 84px;
     gap: 5px;
     padding: 10px;
+  }
+
+  .new-run-screen .deck-choice-grid,
+  .new-run-screen .stake-choice-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .new-run-screen .featured-choice {
+    min-height: 70px;
+  }
+
+  .new-run-screen .secondary-options .setup-choice {
+    min-height: 58px;
   }
 
   .new-run-screen .setup-choice span {

@@ -249,6 +249,42 @@ function getOfferKey(offer: ShopItem): string {
   return `${offer.kind}:${offer.definitionId ?? offer.id}`;
 }
 
+function applyFirstShopJokerGuarantee(
+  state: GameState,
+  refreshCount: number,
+  offers: ShopItem[],
+  shopDiscount: number
+): ShopItem[] {
+  if (state.ante !== 1 || state.blindIndex !== 0 || refreshCount !== 0) {
+    return offers;
+  }
+
+  if (offers.some((offer) => offer.kind === 'joker' && offer.price <= state.money)) {
+    return offers;
+  }
+
+  const starterIds = ['chip_starter', 'mult_starter'];
+  const existingStarterIndex = offers.findIndex((offer) => offer.kind === 'joker' && offer.definitionId && starterIds.includes(offer.definitionId));
+  const existingDefinitionIds = new Set(offers.map((offer) => offer.definitionId).filter(Boolean));
+  const definitionId =
+    existingStarterIndex >= 0
+      ? offers[existingStarterIndex].definitionId ?? 'chip_starter'
+      : starterIds.find((starterId) => !existingDefinitionIds.has(starterId)) ?? 'chip_starter';
+  const definition = getJokerDefinition(definitionId);
+  const guaranteedOffer: ShopItem = {
+    id: `offer-${state.ante}-${state.blindIndex}-${refreshCount}-first-shop-${definitionId}`,
+    kind: 'joker',
+    definitionId,
+    price: Math.max(0, Math.min(discountPrice(definition.price, shopDiscount, state), state.money))
+  };
+
+  if (existingStarterIndex >= 0) {
+    return offers.map((offer, index) => (index === existingStarterIndex ? guaranteedOffer : offer));
+  }
+
+  return offers.map((offer, index) => (index === offers.length - 1 ? guaranteedOffer : offer));
+}
+
 function createShopOffers(state: GameState, refreshCount: number, adjustments: ShopAdjustments = {}): ShopItem[] {
   const rng = createRng(`${state.seed}:shop:${state.ante}:${state.blindIndex}:${refreshCount}`);
   const chosenIds = new Set<string>();
@@ -362,7 +398,9 @@ function createShopOffers(state: GameState, refreshCount: number, adjustments: S
     addWeightedJokerOffer();
   }
 
-  return [...offers, ...(adjustments.extraOffers ?? [])];
+  const guaranteedOffers = applyFirstShopJokerGuarantee(state, refreshCount, offers, shopDiscount);
+
+  return [...guaranteedOffers, ...(adjustments.extraOffers ?? [])];
 }
 
 export function createInitialGame(seed = DEFAULT_SEED, options: InitialGameOptions = {}): GameState {

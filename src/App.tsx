@@ -72,7 +72,7 @@ const PROFILE_KEY = 'local-card-profile-p5';
 const BASE_ANIMATION_MS = 650;
 const APP_VERSION = packageJson.version;
 const BACKUP_EXPORT_VERSION = 1;
-const FEEDBACK_URL = 'mailto:feedback@example.com?subject=%E7%9B%B2%E6%B3%A8%E5%9B%9E%E5%93%8D%20%2F%20Ante%20Echo%20%E5%8F%8D%E9%A6%88';
+const FEEDBACK_URL: string | null = null;
 type SoundKind = 'play' | 'discard' | 'shop' | 'buy' | 'sell' | 'reroll' | 'pack' | 'sort' | 'start' | 'score' | 'mult' | 'error';
 type MobileOverlay = null | 'rules' | 'deck' | 'log' | 'profile' | 'settings';
 type AppScreen = 'home' | 'newRun' | 'collection' | 'stats' | 'settings' | 'rules' | 'game';
@@ -467,6 +467,24 @@ function SettlementTimeline({
   const ruleEvents = events.filter((event) => event.stage === 'rule');
   const cardChips = cardEvents.reduce((total, event) => total + (event.chipsDelta ?? 0), 0);
 
+  if (game.phase === 'shop') {
+    return (
+      <section className={`settlement-panel settlement-summary ${fastMode ? 'fast' : ''}`} aria-label="结算摘要">
+        <div className="settlement-main">
+          <span>本手结算</span>
+          <strong>
+            <AnimatedNumber value={log.finalScore} enabled={!fastMode} duration={420} />
+          </strong>
+        </div>
+        <div className="settlement-summary-grid">
+          <Stat label="牌型" value={log.handName} />
+          <Stat label="计分牌" value={`+${cardChips}`} />
+          <Stat label="最终" value={`${log.finalChips} 筹码 × ${log.finalMult} 倍率`} />
+        </div>
+      </section>
+    );
+  }
+
   return (
     <section className={`settlement-panel ${fastMode ? 'fast' : ''}`} aria-label="结算动画">
       <div className="settlement-main">
@@ -736,7 +754,7 @@ function RulesPanel({ game }: { game: GameState }) {
         <p>
           这是独立制作的《盲注回响 / Ante Echo》，非官方作品，不使用原版素材或受保护文案。线上版本不需要你的电脑保持开机；存档只保存在当前浏览器，可在设置中导出和导入备份。
         </p>
-        <a href={FEEDBACK_URL}>反馈问题</a>
+        {FEEDBACK_URL ? <a href={FEEDBACK_URL}>反馈问题</a> : <small>反馈入口待开放</small>}
       </div>
     </section>
   );
@@ -926,17 +944,19 @@ function ConsumableCard({
   consumable,
   active,
   disabled,
+  disabledReason,
   selectedTargetCount,
   onUse
 }: {
   consumable: ConsumableInstance;
   active: boolean;
   disabled: boolean;
+  disabledReason: string | null;
   selectedTargetCount: number;
   onUse: () => void;
 }) {
   const definition = getConsumableDefinition(consumable.definitionId);
-  const actionLabel = active ? '确认使用' : definition.target.mode === 'none' ? '立即使用' : '选择目标';
+  const actionLabel = active ? '确认使用' : disabledReason === '需要进入盲注后选择手牌目标' ? '盲注中使用' : definition.target.mode === 'none' ? '立即使用' : '选择目标';
   const targetText =
     definition.target.mode === 'cards'
       ? definition.target.min === definition.target.max
@@ -957,6 +977,7 @@ function ConsumableCard({
       <h3>{definition.name}</h3>
       <p>{definition.description}</p>
       <small className="consumable-target-note">{activeText}</small>
+      {disabledReason && <em className="disabled-reason">{disabledReason}</em>}
       <button type="button" disabled={disabled} onClick={onUse}>
         {actionLabel}
       </button>
@@ -1017,6 +1038,12 @@ function ConsumableBar({
             !isActive ||
             !needsCards ||
             (selectedTargetCount >= definition.target.min && selectedTargetCount <= definition.target.max);
+          const disabledReason =
+            needsCards && game.phase !== 'playing'
+              ? '需要进入盲注后选择手牌目标'
+              : needsCards && isActive && !targetCountValid
+                ? '请选择合法数量的目标牌'
+                : null;
           const disabled = needsCards && (game.phase !== 'playing' || !targetCountValid);
 
           return (
@@ -1025,6 +1052,7 @@ function ConsumableBar({
               consumable={consumable}
               active={isActive}
               disabled={disabled}
+              disabledReason={disabledReason}
               selectedTargetCount={selectedTargetCount}
               onUse={() => onUse(consumable.instanceId)}
             />
@@ -1431,13 +1459,13 @@ function SettingsPanel({
       <div className="publish-note compact">
         <span>版本 {APP_VERSION}</span>
         <p>线上版本使用本地浏览器存档，不包含账号、云同步、排行榜或多人功能。换设备前请先导出备份。</p>
-        <a href={FEEDBACK_URL}>反馈问题</a>
+        {FEEDBACK_URL ? <a href={FEEDBACK_URL}>反馈问题</a> : <small>反馈入口待开放</small>}
       </div>
       <div className="backup-panel">
         <div>
           <span>存档管理</span>
           <strong>导出 / 导入本地备份</strong>
-          <p>导出文件会包含当前 run 和长期资料。导入前会先预览摘要，确认后才覆盖当前浏览器存档。</p>
+          <p>导出文件会包含当前 run 和长期资料。换设备或清理浏览器前请先导出；导入前会预览摘要，确认后才覆盖当前浏览器存档。</p>
         </div>
         <div className="storage-actions">
           <button type="button" onClick={onExportBackup}>
@@ -1462,26 +1490,32 @@ function SettingsPanel({
   );
 }
 
-function MobileSituationPanel({ game }: { game: GameState }) {
+function SituationSummaryPanel({ game }: { game: GameState }) {
   const currentBlind = game.currentBlind ?? getBlindForState(game);
   const progress = Math.min(100, Math.round((game.currentScore / game.targetScore) * 100));
 
   return (
+    <section className="situation-summary-panel">
+      <h2>当前局势</h2>
+      <div className="mobile-situation-grid">
+        <Stat label="层级" value={game.endless ? `${game.ante}/∞` : `${game.ante}/${MAX_ANTE}`} />
+        <Stat label="盲注" value={currentBlind.name} />
+        <Stat label="当前分" value={game.currentScore} />
+        <Stat label="目标" value={game.targetScore} />
+        <Stat label="资金" value={`$${game.money}`} />
+        <Stat label="出牌/弃牌" value={`${game.handsRemaining}/${game.discardsRemaining}`} />
+      </div>
+      <div className="progress-track" aria-label={`进度 ${progress}%`}>
+        <div className="progress-fill" style={{ width: `${progress}%` }} />
+      </div>
+    </section>
+  );
+}
+
+function MobileSituationPanel({ game }: { game: GameState }) {
+  return (
     <>
-      <section className="mobile-situation-panel">
-        <h2>当前局势</h2>
-        <div className="mobile-situation-grid">
-          <Stat label="层级" value={game.endless ? `${game.ante}/∞` : `${game.ante}/${MAX_ANTE}`} />
-          <Stat label="盲注" value={currentBlind.name} />
-          <Stat label="当前分" value={game.currentScore} />
-          <Stat label="目标" value={game.targetScore} />
-          <Stat label="资金" value={`$${game.money}`} />
-          <Stat label="出牌/弃牌" value={`${game.handsRemaining}/${game.discardsRemaining}`} />
-        </div>
-        <div className="progress-track" aria-label={`进度 ${progress}%`}>
-          <div className="progress-fill" style={{ width: `${progress}%` }} />
-        </div>
-      </section>
+      <SituationSummaryPanel game={game} />
       <RulesPanel game={game} />
       <RunModifiersPanel game={game} />
     </>
@@ -1496,11 +1530,11 @@ function MobileBottomNav({
   onOpen: (overlay: NonNullable<MobileOverlay>) => void;
 }) {
   const entries: Array<{ id: NonNullable<MobileOverlay>; label: string; icon: string }> = [
-    { id: 'rules', label: '局势', icon: 'HUD' },
-    { id: 'deck', label: '牌组', icon: '52' },
-    { id: 'log', label: '日志', icon: 'LOG' },
-    { id: 'profile', label: '资料', icon: 'RUN' },
-    { id: 'settings', label: '设置', icon: 'SET' }
+    { id: 'rules', label: '局势', icon: '势' },
+    { id: 'deck', label: '牌组', icon: '牌' },
+    { id: 'log', label: '日志', icon: '录' },
+    { id: 'profile', label: '资料', icon: '库' },
+    { id: 'settings', label: '设置', icon: '设' }
   ];
 
   return (
@@ -1702,6 +1736,11 @@ function NewRunView({
   onCancelConfirm: () => void;
   onBack: () => void;
 }) {
+  const selectedDeck = getDeckDefinition(setupDeckId);
+  const secondaryDecks = DECKS.filter((deck) => deck.id !== setupDeckId);
+  const selectedStake = getStakeDefinition(setupStakeId);
+  const secondaryStakes = STAKES.filter((stake) => stake.id !== setupStakeId);
+
   return (
     <section className="menu-screen new-run-screen">
       <header className="menu-page-header">
@@ -1729,19 +1768,30 @@ function NewRunView({
               <p>每副牌组会改变开局节奏和构筑方向。</p>
             </div>
           </div>
-          <div className="deck-choice-grid">
-            {DECKS.map((deck) => (
-              <button
-                key={deck.id}
-                type="button"
-                className={setupDeckId === deck.id ? 'setup-choice selected' : 'setup-choice'}
-                aria-pressed={setupDeckId === deck.id}
-                onClick={() => onDeckChange(deck.id)}
-              >
-                <span>{deck.name}</span>
-                <small>{deck.description}</small>
-              </button>
-            ))}
+          <div className="choice-stack">
+            <button
+              type="button"
+              className="setup-choice selected featured-choice"
+              aria-pressed="true"
+              onClick={() => onDeckChange(selectedDeck.id)}
+            >
+              <span>{selectedDeck.name}</span>
+              <small>{selectedDeck.description}</small>
+            </button>
+            <div className="deck-choice-grid secondary-options">
+              {secondaryDecks.map((deck) => (
+                <button
+                  key={deck.id}
+                  type="button"
+                  className="setup-choice"
+                  aria-pressed="false"
+                  onClick={() => onDeckChange(deck.id)}
+                >
+                  <span>{deck.name}</span>
+                  <small>{deck.description}</small>
+                </button>
+              ))}
+            </div>
           </div>
         </section>
 
@@ -1753,8 +1803,19 @@ function NewRunView({
               <p>未解锁难度会保持不可选，避免误开局。</p>
             </div>
           </div>
-          <div className="stake-choice-row">
-            {STAKES.map((stake) => {
+          <div className="choice-stack">
+            <button
+              type="button"
+              className="setup-choice stake selected featured-choice"
+              aria-pressed="true"
+              disabled={!isStakeUnlocked(profile, selectedStake.id)}
+              onClick={() => onStakeChange(selectedStake.id)}
+            >
+              <span>{selectedStake.name}</span>
+              <small>{selectedStake.description}</small>
+            </button>
+            <div className="stake-choice-row secondary-options">
+              {secondaryStakes.map((stake) => {
               const unlocked = isStakeUnlocked(profile, stake.id);
 
               return (
@@ -1770,7 +1831,8 @@ function NewRunView({
                   <small>{unlocked ? stake.description : '未解锁'}</small>
                 </button>
               );
-            })}
+              })}
+            </div>
           </div>
         </section>
 
@@ -2091,6 +2153,62 @@ function getPackChoiceBlockedText(choice: PackChoice, game: GameState): string |
   return null;
 }
 
+function PackChoiceModal({
+  game,
+  disabled,
+  onChoosePack,
+  onSkipPack
+}: {
+  game: GameState;
+  disabled: boolean;
+  onChoosePack: (instanceId: string) => void;
+  onSkipPack: () => void;
+}) {
+  if (game.packChoices.length === 0) {
+    return null;
+  }
+
+  const activePack = getPackDefinition(game.packChoices[0].packId);
+
+  return (
+    <div className="pack-modal-layer" role="presentation">
+      <div className={`pack-choice-panel pack-modal ${activePack.kind}`} role="dialog" aria-modal="true" aria-label={activePack.name}>
+        <div className="pack-choice-heading">
+          <div>
+            <span>{activePack.name}</span>
+            <strong>选择 1 张，或跳过</strong>
+            <small>{activePack.description}</small>
+          </div>
+          <button type="button" className="secondary-action compact-action" disabled={disabled} title="跳过这个补充包，不获得候选内容" onClick={onSkipPack}>
+            跳过
+          </button>
+        </div>
+        <div className="pack-choice-row">
+          {game.packChoices.map((choice, index) => {
+            const blockedText = getPackChoiceBlockedText(choice, game);
+
+            return (
+              <button
+                type="button"
+                className={`pack-choice ${choice.kind}`}
+                key={choice.instanceId}
+                title={getPackChoiceDetail(choice, index)}
+                disabled={disabled || Boolean(blockedText)}
+                onClick={() => onChoosePack(choice.instanceId)}
+              >
+                <span>{index + 1}. {getPackChoiceLabel(choice)}</span>
+                <strong>{getPackChoiceTitle(choice)}</strong>
+                <small>{getPackChoiceDescription(choice)}</small>
+                {blockedText && <em>{blockedText}</em>}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ShopView({
   game,
   disabled,
@@ -2111,7 +2229,6 @@ function ShopView({
   const completedBlind = game.currentBlind;
   const shopLocked = disabled || game.packChoices.length > 0;
   const projectedInterest = calculateInterest(game.money);
-  const activePack = game.packChoices.length > 0 ? getPackDefinition(game.packChoices[0].packId) : null;
 
   return (
     <section className="stage-view shop-view">
@@ -2139,41 +2256,6 @@ function ShopView({
           <small>{game.packChoices.length > 0 ? '先选完补充包内容，才能刷新或进入下一盲注。' : '买、卖、刷新、保留钱都可取舍。'}</small>
         </div>
       </div>
-      {game.packChoices.length > 0 && (
-        <div className={`pack-choice-panel ${activePack?.kind ?? ''}`}>
-          <div className="pack-choice-heading">
-            <div>
-              <span>{activePack?.name ?? '补充包'}</span>
-              <strong>选择 1 张，或跳过</strong>
-              <small>{activePack?.description}</small>
-            </div>
-            <button type="button" className="secondary-action compact-action" disabled={disabled} title="跳过这个补充包，不获得候选内容" onClick={onSkipPack}>
-              跳过
-            </button>
-          </div>
-          <div className="pack-choice-row">
-            {game.packChoices.map((choice, index) => {
-              const blockedText = getPackChoiceBlockedText(choice, game);
-
-              return (
-                <button
-                  type="button"
-                  className={`pack-choice ${choice.kind}`}
-                  key={choice.instanceId}
-                  title={getPackChoiceDetail(choice, index)}
-                  disabled={disabled || Boolean(blockedText)}
-                  onClick={() => onChoosePack(choice.instanceId)}
-                >
-                  <span>{getPackChoiceLabel(choice)}</span>
-                  <strong>{getPackChoiceTitle(choice)}</strong>
-                  <small>{getPackChoiceDescription(choice)}</small>
-                  {blockedText && <em>{blockedText}</em>}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
       <div className="shop-shelves">
         {game.shopOffers.map((offer) => (
           <ShopOfferCard
@@ -2201,6 +2283,7 @@ function ShopView({
           下一盲注
         </button>
       </div>
+      <PackChoiceModal game={game} disabled={disabled} onChoosePack={onChoosePack} onSkipPack={onSkipPack} />
     </section>
   );
 }
@@ -2229,6 +2312,43 @@ function getShopOfferDetail(offer: ShopItem): string {
   return `${definition.name}｜${JOKER_ARCHETYPE_LABELS[definition.archetypes[0] ?? 'general']}｜$${offer.price}｜${definition.description}｜${definition.triggerText}：${definition.conditionText}`;
 }
 
+function getShopOfferHint(offer: ShopItem, money: number): string {
+  if (!offer.definitionId) {
+    return '未知商品';
+  }
+
+  if (offer.kind === 'pack') {
+    const definition = getPackDefinition(offer.definitionId);
+    if (definition.kind === 'standard') return '牌堆改造｜补充新牌';
+    if (definition.kind === 'planet') return '牌型成长｜提升常用牌型';
+    if (definition.kind === 'tarot') return '牌堆改造｜复制、删牌或增强';
+    if (definition.kind === 'joker') return '构筑补强｜补小丑槽';
+    return '高风险高收益｜会带代价';
+  }
+
+  if (offer.kind === 'consumable') {
+    const definition = getConsumableDefinition(offer.definitionId);
+    return definition.target.mode === 'cards' ? '盲注中使用｜选择手牌目标' : '立即生效｜不需要目标';
+  }
+
+  if (offer.kind === 'voucher') {
+    return '长期效果｜买下后持续生效';
+  }
+
+  const definition = getJokerDefinition(offer.definitionId);
+  const archetype = JOKER_ARCHETYPE_LABELS[definition.archetypes[0] ?? 'general'];
+  const moneyEffect = definition.effects.find((effect) => effect.type === 'money_add_mult');
+  if (moneyEffect?.type === 'money_add_mult' && money < moneyEffect.divisor) {
+    return `${archetype}流｜当前资金不足以触发`;
+  }
+
+  return `${archetype}流｜${definition.conditionText}`;
+}
+
+function getActionBlockedReason(actionDisabled: boolean): string | null {
+  return actionDisabled ? '先处理当前补充包或等待结算完成' : null;
+}
+
 function ShopOfferCard({
   offer,
   money,
@@ -2245,12 +2365,23 @@ function ShopOfferCard({
   onBuy: () => void;
 }) {
   const offerDetail = getShopOfferDetail(offer);
+  const actionBlockedReason = getActionBlockedReason(actionDisabled);
+  const offerHint = getShopOfferHint(offer, money);
 
   if (offer.kind === 'pack') {
     const definition = getPackDefinition(offer.definitionId);
     const slotBlocked =
       (definition.kind === 'planet' || definition.kind === 'tarot') ? consumableSlotsFull : definition.kind === 'joker' ? jokerSlotsFull : false;
     const disabled = actionDisabled || money < offer.price || slotBlocked;
+    const disabledReason =
+      actionBlockedReason ??
+      (definition.kind === 'joker' && jokerSlotsFull
+        ? '小丑槽位已满，先卖出一张'
+        : (definition.kind === 'planet' || definition.kind === 'tarot') && consumableSlotsFull
+          ? '消耗牌槽位已满'
+          : money < offer.price
+            ? `还差 $${offer.price - money}`
+            : null);
     const blockedLabel =
       definition.kind === 'joker' && jokerSlotsFull
         ? '先卖小丑'
@@ -2268,6 +2399,8 @@ function ShopOfferCard({
         </div>
         <strong>{definition.name}</strong>
         <p>{definition.description}</p>
+        <small className="shop-hint">{offerHint}</small>
+        {disabledReason && <em className="shop-blocked-reason">{disabledReason}</em>}
         <button type="button" disabled={disabled} onClick={onBuy}>
           {blockedLabel}
         </button>
@@ -2282,6 +2415,15 @@ function ShopOfferCard({
   if (offer.kind === 'consumable') {
     const definition = getConsumableDefinition(offer.definitionId);
     const disabled = actionDisabled || money < offer.price || consumableSlotsFull;
+    const disabledReason =
+      actionBlockedReason ??
+      (consumableSlotsFull
+        ? '消耗牌槽位已满，先使用一张'
+        : money < offer.price
+          ? `还差 $${offer.price - money}`
+          : definition.target.mode === 'cards'
+            ? '购买后在盲注中选择手牌目标'
+            : null);
 
     return (
       <article className={`shop-slot consumable-offer ${definition.kind}`} title={offerDetail}>
@@ -2291,6 +2433,8 @@ function ShopOfferCard({
         </div>
         <strong>{definition.name}</strong>
         <p>{definition.description}</p>
+        <small className="shop-hint">{offerHint}</small>
+        {disabledReason && <em className="shop-blocked-reason">{disabledReason}</em>}
         <button type="button" disabled={disabled} onClick={onBuy}>
           {consumableSlotsFull ? '槽位已满' : money < offer.price ? '资金不足' : '购买'}
         </button>
@@ -2301,6 +2445,7 @@ function ShopOfferCard({
   if (offer.kind === 'voucher') {
     const definition = getVoucherDefinition(offer.definitionId);
     const disabled = actionDisabled || money < offer.price;
+    const disabledReason = actionBlockedReason ?? (money < offer.price ? `还差 $${offer.price - money}` : null);
 
     return (
       <article className="shop-slot voucher-offer" title={offerDetail}>
@@ -2310,6 +2455,8 @@ function ShopOfferCard({
         </div>
         <strong>{definition.name}</strong>
         <p>{definition.description}</p>
+        <small className="shop-hint">{offerHint}</small>
+        {disabledReason && <em className="shop-blocked-reason">{disabledReason}</em>}
         <button type="button" disabled={disabled} onClick={onBuy}>
           {money < offer.price ? '资金不足' : '购买'}
         </button>
@@ -2319,6 +2466,9 @@ function ShopOfferCard({
 
   const definition = getJokerDefinition(offer.definitionId);
   const disabled = actionDisabled || money < offer.price || jokerSlotsFull;
+  const disabledReason =
+    actionBlockedReason ??
+    (jokerSlotsFull ? '小丑槽位已满，先卖出一张' : money < offer.price ? `还差 $${offer.price - money}` : null);
 
   return (
     <article className="shop-slot" title={offerDetail}>
@@ -2330,6 +2480,8 @@ function ShopOfferCard({
       <JokerInfoBadges definition={definition} />
       <p>{definition.description}</p>
       <JokerTriggerDetails definition={definition} />
+      <small className="shop-hint">{offerHint}</small>
+      {disabledReason && <em className="shop-blocked-reason">{disabledReason}</em>}
       <button type="button" disabled={disabled} onClick={onBuy}>
         {jokerSlotsFull ? '槽位已满' : money < offer.price ? '资金不足' : '购买'}
       </button>
@@ -2349,6 +2501,7 @@ function OutcomeView({
   const won = game.phase === 'run_won';
   const deckDefinition = getDeckDefinition(game.deckId);
   const stakeDefinition = getStakeDefinition(game.stakeId);
+  const scoreShortfall = game.phase === 'run_lost' ? Math.max(0, game.targetScore - game.currentScore) : 0;
 
   return (
     <section className={`stage-view outcome-view ${won ? 'won' : 'lost'}`}>
@@ -2356,6 +2509,11 @@ function OutcomeView({
         <span>{won ? '整局胜利' : '本局失败'}</span>
         <h2>{won ? '第 8 层首领盲注已通过' : '盲注挑战失败'}</h2>
         <p>{game.message}</p>
+        {!won && (
+          <p className="outcome-advice">
+            下一次建议：还差 {scoreShortfall} 分，优先在商店买小丑，或打出对子、同花、顺子这类更高倍率牌型。
+          </p>
+        )}
       </div>
       <div className="outcome-recap">
         <div className="outcome-score">
@@ -2512,7 +2670,7 @@ export default function App() {
   }, [game, selectedCards]);
   const selectedPreviewScore = useMemo(() => {
     if (selectedCards.length === 0) {
-      return '选择 1 到 5 张牌后会显示基础筹码与倍率。';
+      return '优先凑对子、同花或顺子；选择 1 到 5 张牌后会显示预计基础分。';
     }
 
     if (selectedCards.some((card) => isCardHiddenByBoss(game, card))) {
@@ -2522,8 +2680,9 @@ export default function App() {
     const evaluation = evaluateHand(selectedCards);
     const score = getHandScore(evaluation.hand, game.handLevels[evaluation.hand]);
     const cardChips = evaluation.scoredCards.reduce((total, card) => total + getCardChips(card), 0);
+    const previewScore = (score.chips + cardChips) * score.mult;
 
-    return `基础 ${score.chips} 筹码 × ${score.mult} 倍率，计分牌 +${cardChips} 筹码`;
+    return `基础 ${score.chips} 筹码 × ${score.mult} 倍率，计分牌 +${cardChips}，预计基础分 ${previewScore}`;
   }, [game, game.handLevels, selectedCards]);
   const progress = Math.min(100, Math.round((game.currentScore / game.targetScore) * 100));
   const currentBlind: BlindDefinition = game.currentBlind ?? getBlindForState(game);
@@ -2573,6 +2732,26 @@ export default function App() {
   useEffect(() => {
     setActiveOverlay(null);
   }, [game.phase]);
+
+  useEffect(() => {
+    if (appScreen !== 'game') {
+      return;
+    }
+
+    if (!['shop', 'blind_select', 'run_lost', 'run_won'].includes(game.phase)) {
+      return;
+    }
+
+    if (!window.matchMedia('(max-width: 1080px)').matches) {
+      return;
+    }
+
+    const frame = window.requestAnimationFrame(() => {
+      document.querySelector('.stage-view')?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [appScreen, game.phase]);
 
   useEffect(
     () => () => {
@@ -3124,9 +3303,18 @@ export default function App() {
       </section>
 
       <aside className="side-panel desktop-side-panel">
-        <RulesPanel game={game} />
-        <ProfilePanel profile={profile} />
+        <SituationSummaryPanel game={game} />
         <RunModifiersPanel game={game} />
+        <section>
+          <h2>最近结算日志</h2>
+          <ScoringLog game={game} detailed={profile.settings.showDetailedScoring} />
+        </section>
+        <DeckPanel game={game} />
+        <details className="side-details-panel">
+          <summary>规则说明</summary>
+          <RulesPanel game={game} />
+        </details>
+        <ProfilePanel profile={profile} />
         <SettingsPanel
           profile={profile}
           onChange={setProfile}
@@ -3136,12 +3324,7 @@ export default function App() {
           onImportBackup={importBackup}
           importMessage={importMessage}
         />
-        <section>
-          <h2>最近结算日志</h2>
-          <ScoringLog game={game} detailed={profile.settings.showDetailedScoring} />
-        </section>
         <DiscardPanel game={game} />
-        <DeckPanel game={game} />
       </aside>
 
       <MobileBottomNav

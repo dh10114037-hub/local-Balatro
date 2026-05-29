@@ -72,7 +72,7 @@ const PROFILE_KEY = 'local-card-profile-p5';
 const BASE_ANIMATION_MS = 650;
 const APP_VERSION = packageJson.version;
 const BACKUP_EXPORT_VERSION = 1;
-const FEEDBACK_URL = 'mailto:feedback@example.com?subject=%E6%9C%AC%E5%9C%B0%E7%89%8C%E7%BB%84%E6%8C%91%E6%88%98%E5%8F%8D%E9%A6%88';
+const FEEDBACK_URL = 'mailto:feedback@example.com?subject=%E7%9B%B2%E6%B3%A8%E5%9B%9E%E5%93%8D%20%2F%20Ante%20Echo%20%E5%8F%8D%E9%A6%88';
 type SoundKind = 'play' | 'discard' | 'shop' | 'buy' | 'sell' | 'reroll' | 'pack' | 'sort' | 'start' | 'score' | 'mult' | 'error';
 type MobileOverlay = null | 'rules' | 'deck' | 'log' | 'profile' | 'settings';
 type AppScreen = 'home' | 'newRun' | 'collection' | 'stats' | 'settings' | 'rules' | 'game';
@@ -734,7 +734,7 @@ function RulesPanel({ game }: { game: GameState }) {
       <div className="publish-note">
         <span>线上说明</span>
         <p>
-          这是独立制作的本地单人牌组挑战，非官方作品，不使用原版素材或受保护文案。线上版本不需要你的电脑保持开机；存档只保存在当前浏览器，可在设置中导出和导入备份。
+          这是独立制作的《盲注回响 / Ante Echo》，非官方作品，不使用原版素材或受保护文案。线上版本不需要你的电脑保持开机；存档只保存在当前浏览器，可在设置中导出和导入备份。
         </p>
         <a href={FEEDBACK_URL}>反馈问题</a>
       </div>
@@ -1626,7 +1626,8 @@ function HomeView({
     <section className="menu-screen home-screen">
       <div className="menu-hero">
         <p className="eyebrow">本地单人牌组挑战</p>
-        <h1>本地牌组挑战</h1>
+        <h1>盲注回响</h1>
+        <p className="title-translation">Ante Echo</p>
         <p>先选牌组与难度，再进入盲注、商店、小丑和牌堆改造的完整 run。</p>
         <small className="version-chip">v{APP_VERSION}｜本地存档｜静态线上版</small>
       </div>
@@ -3001,7 +3002,8 @@ export default function App() {
         <header className="top-bar">
           <div>
             <p className="eyebrow">当前牌局</p>
-            <h1>本地牌组挑战</h1>
+            <h1>盲注回响</h1>
+            <p className="title-translation compact">Ante Echo</p>
           </div>
           <div className="game-menu-actions">
             <span className="seed-chip">种子 {game.seed}</span>

@@ -3650,9 +3650,14 @@ function PlayView({
   const targetPreview = activeDefinition ? getConsumableEffectPreview(activeDefinition, selectedTargetCards) : '';
   const targetSelectedLabel =
     selectedTargetCards.length > 0 ? selectedTargetCards.map((card) => formatCard(card)).join('、') : '还没有选择目标牌';
+  const targetInstruction = activeDefinition
+    ? activeDefinition.target.min === activeDefinition.target.max
+      ? `点选 ${activeDefinition.target.min} 张手牌作为目标`
+      : `点选 ${activeDefinition.target.min}-${activeDefinition.target.max} 张手牌作为目标`
+    : '';
 
   return (
-    <section className="play-zone">
+    <section className={`play-zone ${activeDefinition ? 'targeting-mode' : ''}`}>
       <div className="zone-header">
         <div>
           <span>{activeDefinition ? '消耗牌目标' : '当前牌型'}</span>
@@ -3691,20 +3696,14 @@ function PlayView({
           <div>
             <span>目标选择模式</span>
             <strong>{targetProgress?.label}</strong>
-            <p>{activeDefinition.description}</p>
+            <p>
+              {targetInstruction}。{activeDefinition.description}
+            </p>
           </div>
           <div className="target-preview-grid">
             <small>目标牌：{targetSelectedLabel}</small>
             <small>结果预览：{targetPreview}</small>
             <small>{targetProgress?.detail}</small>
-          </div>
-          <div className="action-row">
-            <button type="button" disabled={!targetCountValid} onClick={onConfirmConsumable}>
-              确认使用
-            </button>
-            <button type="button" className="secondary-action" onClick={onCancelConsumable}>
-              取消
-            </button>
           </div>
         </div>
       )}
@@ -3729,20 +3728,36 @@ function PlayView({
         })}
       </div>
 
-      <div className="action-row">
-        <button type="button" disabled={!canAct} title="打出已选手牌并结算本手分数" onClick={onPlay}>
-          出牌
-        </button>
-        <button
-          type="button"
-          className="secondary-action"
-          disabled={!canAct || game.discardsRemaining <= 0}
-          title="弃掉已选手牌并补牌，不结算分数"
-          onClick={onDiscard}
-        >
-          弃牌
-        </button>
-      </div>
+      {activeDefinition &&
+        createPortal(
+          <div className={`action-row target-action-row ${targetCountValid ? 'valid' : 'invalid'}`}>
+            <span className="target-action-note">{targetCountValid ? targetPreview : targetProgress?.detail}</span>
+            <button type="button" disabled={!targetCountValid} onClick={onConfirmConsumable}>
+              {targetCountValid ? `确认使用 ${activeDefinition.name}` : targetProgress?.label}
+            </button>
+            <button type="button" className="secondary-action" onClick={onCancelConsumable}>
+              取消目标
+            </button>
+          </div>,
+          document.body
+        )}
+
+      {!activeDefinition && (
+        <div className="action-row">
+          <button type="button" disabled={!canAct} title="打出已选手牌并结算本手分数" onClick={onPlay}>
+            出牌
+          </button>
+          <button
+            type="button"
+            className="secondary-action"
+            disabled={!canAct || game.discardsRemaining <= 0}
+            title="弃掉已选手牌并补牌，不结算分数"
+            onClick={onDiscard}
+          >
+            弃牌
+          </button>
+        </div>
+      )}
     </section>
   );
 }

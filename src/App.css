@@ -2903,6 +2903,39 @@ button:disabled {
   filter: saturate(0.65);
 }
 
+.game-card.target-eligible::before,
+.game-card.target-selected::before,
+.game-card.target-locked::before {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 2;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 999px;
+  padding: 3px 6px;
+  color: #fff7e6;
+  background: rgba(16, 21, 31, 0.82);
+  font-size: 0.66rem;
+  font-weight: 950;
+  line-height: 1;
+}
+
+.game-card.target-eligible::before {
+  content: '可选';
+  background: rgba(12, 96, 65, 0.86);
+}
+
+.game-card.target-selected::before {
+  content: '已选';
+  color: #172030;
+  background: var(--gold);
+}
+
+.game-card.target-locked::before {
+  content: '上限';
+  background: rgba(98, 103, 118, 0.86);
+}
+
 .game-card:hover:not(:disabled) {
   filter: brightness(1.04);
 }
@@ -3068,6 +3101,42 @@ button:disabled {
   background: rgba(0, 0, 0, 0.16);
   font-size: 0.74rem;
   font-weight: 850;
+  line-height: 1.3;
+}
+
+.target-action-row {
+  position: fixed;
+  left: 50%;
+  bottom: 18px;
+  z-index: 50;
+  width: min(720px, calc(100vw - 36px));
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  justify-content: stretch;
+  border: 1px solid rgba(224, 167, 47, 0.36);
+  border-radius: 8px;
+  padding: 10px;
+  background:
+    linear-gradient(135deg, rgba(224, 167, 47, 0.12), rgba(8, 52, 44, 0.16)),
+    rgba(0, 0, 0, 0.18);
+  box-shadow: 0 -14px 36px rgba(0, 0, 0, 0.38);
+  transform: translateX(-50%);
+}
+
+.target-action-row.valid {
+  border-color: rgba(94, 224, 143, 0.46);
+}
+
+.target-action-row.invalid {
+  border-color: rgba(220, 70, 84, 0.36);
+}
+
+.target-action-note {
+  min-width: 0;
+  color: #ffe5ad;
+  font-size: 0.82rem;
+  font-weight: 900;
   line-height: 1.3;
 }
 
@@ -4762,7 +4831,7 @@ button:disabled {
 
   .sort-actions {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .hand-row {
@@ -4852,8 +4921,64 @@ button:disabled {
     order: 1;
   }
 
+  .play-zone > .target-action-row {
+    order: 4;
+  }
+
+  .targeting-mode .target-banner {
+    padding: 8px;
+  }
+
+  .play-zone.targeting-mode {
+    padding-bottom: calc(var(--mobile-nav-height) + 92px);
+  }
+
+  .targeting-mode .target-banner p {
+    display: -webkit-box;
+    overflow: hidden;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    margin-bottom: 6px;
+    font-size: 0.82rem;
+    line-height: 1.35;
+  }
+
   .target-preview-grid {
     grid-template-columns: 1fr;
+    margin: 6px 0 0;
+  }
+
+  .target-preview-grid small {
+    padding: 6px 7px;
+    font-size: 0.7rem;
+  }
+
+  .target-action-row {
+    left: 16px;
+    right: 16px;
+    bottom: calc(var(--mobile-nav-height) + 8px);
+    width: auto;
+    grid-template-columns: 1fr 1fr;
+    gap: 7px;
+    padding: 8px;
+    border-color: rgba(224, 167, 47, 0.58);
+    background:
+      linear-gradient(135deg, rgba(20, 36, 43, 0.96), rgba(5, 57, 47, 0.96)),
+      #10151f;
+    box-shadow: 0 -14px 36px rgba(0, 0, 0, 0.38);
+    backdrop-filter: blur(12px);
+    transform: none;
+  }
+
+  .target-action-note {
+    grid-column: 1 / -1;
+    font-size: 0.76rem;
+  }
+
+  .target-action-row button {
+    min-height: 42px;
+    padding-inline: 8px;
+    font-size: 0.82rem;
   }
 
   .hand-row {
@@ -5378,6 +5503,14 @@ button:disabled {
   .stage-view > .action-row {
     bottom: auto;
     margin: 0;
+  }
+
+  .play-zone > .target-action-row {
+    bottom: calc(var(--mobile-nav-height) + 8px);
+  }
+
+  .target-action-row {
+    bottom: calc(var(--mobile-nav-height) + 8px);
   }
 }
 

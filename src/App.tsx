@@ -62,6 +62,7 @@ import type {
   JokerTriggerTiming,
   PackChoice,
   PersistentProfile,
+  PokerHand,
   ProfileRunRecord,
   ScoringEvent,
   ScoringLog as GameScoringLog,
@@ -1314,6 +1315,116 @@ function getPhaseTask(phase: GamePhase): string {
   return '本局失败。重新开局后可以换一个种子再试。';
 }
 
+type HandRuleCard = {
+  hand: PokerHand;
+  example: string[];
+  rule: string;
+  badge: string;
+};
+
+const HAND_RULE_GUIDE: HandRuleCard[] = [
+  {
+    hand: 'high_card',
+    example: ['A♠'],
+    rule: '没有组成其它牌型时，只取最高的一张计分。',
+    badge: '1-5 张都可能'
+  },
+  {
+    hand: 'pair',
+    example: ['7♠', '7♥'],
+    rule: '两张同点数。多选散牌会打出，但通常不计入这手牌型。',
+    badge: '2 张起'
+  },
+  {
+    hand: 'two_pair',
+    example: ['7♠', '7♥', '8♣', '8♦'],
+    rule: '两组对子。比如 7788 就是两对，可以直接用 4 张打出。',
+    badge: '4 张起'
+  },
+  {
+    hand: 'three_of_a_kind',
+    example: ['Q♠', 'Q♥', 'Q♦'],
+    rule: '三张同点数。只要三张成立，不必选满 5 张。',
+    badge: '3 张起'
+  },
+  {
+    hand: 'straight',
+    example: ['4♣', '5♦', '6♠', '7♥', '8♣'],
+    rule: '必须是 5 张连续点数。A2345 也算顺子；4567 只有 4 张，不算顺子。',
+    badge: '必须 5 张'
+  },
+  {
+    hand: 'flush',
+    example: ['2♥', '6♥', '9♥', 'J♥', 'K♥'],
+    rule: '必须是 5 张同花色。万能牌可以帮助组成同花。',
+    badge: '必须 5 张'
+  },
+  {
+    hand: 'full_house',
+    example: ['7♠', '7♥', '7♦', '8♣', '8♦'],
+    rule: '三条加一对，必须刚好由 5 张有效牌组成。',
+    badge: '必须 5 张'
+  },
+  {
+    hand: 'four_of_a_kind',
+    example: ['9♠', '9♥', '9♣', '9♦'],
+    rule: '四张同点数。第 5 张散牌可一起打出，但四张才是计分核心。',
+    badge: '4 张起'
+  },
+  {
+    hand: 'straight_flush',
+    example: ['4♠', '5♠', '6♠', '7♠', '8♠'],
+    rule: '顺子和同花同时成立。',
+    badge: '必须 5 张'
+  },
+  {
+    hand: 'royal_flush',
+    example: ['10♦', 'J♦', 'Q♦', 'K♦', 'A♦'],
+    rule: '10、J、Q、K、A 的同花顺。',
+    badge: '必须 5 张'
+  },
+  {
+    hand: 'five_of_a_kind',
+    example: ['A♠', 'A♥', 'A♣', 'A♦', 'A♠'],
+    rule: '五张同点数，通常需要复制或改点数后才会出现。',
+    badge: '改造牌堆'
+  },
+  {
+    hand: 'flush_house',
+    example: ['7♠', '7♠', '7♠', '8♠', '8♠'],
+    rule: '葫芦且 5 张同花色，通常需要改花色或复制牌。',
+    badge: '改造牌堆'
+  },
+  {
+    hand: 'flush_five',
+    example: ['A♥', 'A♥', 'A♥', 'A♥', 'A♥'],
+    rule: '五条且 5 张同花色，是改造牌堆后的顶级牌型。',
+    badge: '改造牌堆'
+  }
+];
+
+const HAND_RULE_EXAMPLES = [
+  { pattern: '7788', result: '两对', note: '两组对子，4 张就能打。' },
+  { pattern: '4567', result: '高牌', note: '可以出牌，但不是顺子；顺子必须 5 张连续。' },
+  { pattern: '45678', result: '顺子', note: '5 张连续点数成立。' },
+  { pattern: 'A2345', result: '顺子', note: 'A 可以在这个组合里当作 1。' }
+];
+
+function HandExampleCards({ cards }: { cards: string[] }) {
+  return (
+    <div className="hand-mini-cards" aria-label={cards.join(' ')}>
+      {cards.map((card, index) => {
+        const isRed = card.includes('♥') || card.includes('♦');
+        return (
+          <span className={`hand-mini-card ${isRed ? 'red' : 'black'}`} key={`${card}-${index}`}>
+            {card}
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
 function RulesPanel({ game }: { game: GameState }) {
   return (
     <section className="rules-panel">
@@ -1322,6 +1433,44 @@ function RulesPanel({ game }: { game: GameState }) {
         <span>当前要做</span>
         <strong>{getPhaseTask(game.phase)}</strong>
       </div>
+      <section className="hand-guide" aria-labelledby="hand-guide-title">
+        <div className="hand-guide-header">
+          <div>
+            <span>牌型速查</span>
+            <h3 id="hand-guide-title">1 到 5 张都能出，系统会取最佳牌型</h3>
+          </div>
+          <p>顺子、同花、葫芦和特殊牌型通常要求 5 张；对子、两对、三条、四条可以少于 5 张成立。</p>
+        </div>
+        <div className="hand-rule-examples" aria-label="常见边界例子">
+          {HAND_RULE_EXAMPLES.map((example) => (
+            <div className="hand-rule-example" key={example.pattern}>
+              <strong>{example.pattern}</strong>
+              <span>→ {example.result}</span>
+              <small>{example.note}</small>
+            </div>
+          ))}
+        </div>
+        <div className="hand-guide-grid">
+          {HAND_RULE_GUIDE.map((item) => {
+            const score = HAND_SCORES[item.hand];
+            return (
+              <article className="hand-rule-card" key={item.hand}>
+                <div className="hand-rule-card-top">
+                  <div>
+                    <span className="hand-rule-name">{score.name}</span>
+                    <span className="hand-rule-score">
+                      {score.chips} 筹码 ×{score.mult}
+                    </span>
+                  </div>
+                  <em>{item.badge}</em>
+                </div>
+                <HandExampleCards cards={item.example} />
+                <p>{item.rule}</p>
+              </article>
+            );
+          })}
+        </div>
+      </section>
       <ol>
         <li>一局由多个层级组成，每个层级按小盲、大盲、首领盲注推进。</li>
         <li>每个盲注有目标分数。达到目标就进入商店；出牌次数用完还没达标就失败。</li>

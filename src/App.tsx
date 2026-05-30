@@ -1416,6 +1416,65 @@ const HAND_RULE_EXAMPLES = [
   { pattern: 'A2345', result: '顺子', note: 'A 可以在这个组合里当作 1。' }
 ];
 
+type RuleTabId = 'quick' | 'hands' | 'scoring' | 'cards' | 'shop' | 'boss';
+
+const RULE_TABS: Array<{ id: RuleTabId; label: string }> = [
+  { id: 'quick', label: '快速上手' },
+  { id: 'hands', label: '牌型说明' },
+  { id: 'scoring', label: '计分流程' },
+  { id: 'cards', label: '卡牌能力' },
+  { id: 'shop', label: '商店构筑' },
+  { id: 'boss', label: 'Boss/跳过' }
+];
+
+const QUICK_RULES = [
+  { title: '推进顺序', body: '每个层级按小盲、大盲、首领盲注推进，打过当前盲注后进入商店。' },
+  { title: '胜负目标', body: '在有限出牌次数内达到目标分就过关；出牌次数用完还没达标就失败。' },
+  { title: '每次操作', body: '出牌会得分，弃牌只换牌但不计分；两者次数都有限。' },
+  { title: '构筑循环', body: '商店购买小丑、星球、塔罗、补充包和优惠券，让下一轮更强。' }
+];
+
+const SCORING_STEPS = [
+  { title: '牌型基础', body: '系统识别最佳牌型，给出基础筹码和倍率。' },
+  { title: '计分牌', body: '参与牌型的牌逐张加筹码，Boss 禁用牌会显示原因。' },
+  { title: '增强牌', body: 'Bonus、Mult、Glass、Steel、Gold 等增强按各自规则生效。' },
+  { title: '小丑触发', body: '小丑从左到右结算，顺序会影响 +Mult 和 xMult 的最终结果。' },
+  { title: '规则修正', body: 'Boss 或特殊规则最后修正分数，再得到最终分。' }
+];
+
+const ENHANCEMENT_RULES: Array<{ id: NonNullable<Card['enhancement']>; body: string }> = [
+  { id: 'bonus', body: '计分时增加筹码，适合补稳定基础分。' },
+  { id: 'mult', body: '计分时增加倍率，适合配合高筹码牌型。' },
+  { id: 'wild', body: '可帮助组成同花，降低花色要求。' },
+  { id: 'glass', body: '高风险放大倍率，有概率在结算后破碎。' },
+  { id: 'steel', body: '留在手牌中放大倍率，通常不需要打出。' },
+  { id: 'gold', body: '通过盲注后给钱，偏经济构筑。' },
+  { id: 'stone', body: '强化筹码但失去原本点数和花色价值。' }
+];
+
+const CARD_RULES = [
+  { title: '星球牌', body: '提升指定牌型等级，让之后同类牌型获得更高基础筹码和倍率。' },
+  { title: '塔罗牌', body: '用于改花色、改点数、复制、删除、增强牌或直接获得资金。' },
+  { title: '幻灵牌', body: '通常是强收益加明确代价，可能创建小丑、复制牌、删牌、强化牌或清空资金。' },
+  { title: '补充包', body: '标准、星球、塔罗、小丑和幻灵包打开后选择 1 张，也可以跳过。' }
+];
+
+const SHOP_RULES = [
+  { title: '商店商品', body: '货架会出现小丑、星球、塔罗、补充包和优惠券。' },
+  { title: '刷新压力', body: '刷新从 $3 起，每次刷新后变贵；减免最低到 $0。' },
+  { title: '利息', body: `默认每 $${INTEREST_MONEY_STEP} 存款给 $1，最多 $${MAX_INTEREST_PAYOUT}。` },
+  { title: '优惠券', body: '基础券可直接出现，升级券需要先买下同组基础券后才会进入商店池。' },
+  { title: '槽位', body: '小丑槽和消耗牌槽会限制购买，满槽时需要先卖出或使用。' }
+];
+
+const BOSS_RULES = [
+  { title: 'Boss 预告', body: '进入首领盲注前会展示名称、限制和应对建议。' },
+  { title: '当前盲注生效', body: 'Boss 限制只影响当前盲注，进入商店后会清除。' },
+  { title: '限制类型', body: '可能禁用花色/点数、人头牌、小丑稀有度，或禁止/要求某些牌型。' },
+  { title: '跳过奖励', body: '小盲和大盲可以跳过换 Tag；跳过不给普通奖励，Boss 不能跳过。' },
+  { title: '兑现时机', body: 'Tag 通常在后续商店或下一场盲注兑现，效果会在局势面板显示。' }
+];
+
 function HandExampleCards({ cards }: { cards: string[] }) {
   return (
     <div className="hand-mini-cards" aria-label={cards.join(' ')}>
@@ -1432,77 +1491,178 @@ function HandExampleCards({ cards }: { cards: string[] }) {
 }
 
 function RulesPanel({ game }: { game: GameState }) {
+  const [activeTab, setActiveTab] = useState<RuleTabId>('quick');
+
   return (
     <section className="rules-panel">
       <h2>规则说明</h2>
-      <div className="current-task">
-        <span>当前要做</span>
-        <strong>{getPhaseTask(game.phase)}</strong>
+      <div className="rules-tabs" role="tablist" aria-label="规则分类">
+        {RULE_TABS.map((tab) => (
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === tab.id}
+            aria-controls={`rule-tab-${tab.id}`}
+            id={`rule-tab-button-${tab.id}`}
+            className={activeTab === tab.id ? 'active' : ''}
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+          >
+            {tab.label}
+          </button>
+        ))}
       </div>
-      <section className="hand-guide" aria-labelledby="hand-guide-title">
-        <div className="hand-guide-header">
-          <div>
-            <span>牌型速查</span>
-            <h3 id="hand-guide-title">1 到 5 张都能出，系统会取最佳牌型</h3>
-          </div>
-          <p>顺子、同花、葫芦和特殊牌型通常要求 5 张；对子、两对、三条、四条可以少于 5 张成立。</p>
-        </div>
-        <div className="hand-rule-examples" aria-label="常见边界例子">
-          {HAND_RULE_EXAMPLES.map((example) => (
-            <div className="hand-rule-example" key={example.pattern}>
-              <strong>{example.pattern}</strong>
-              <span>→ {example.result}</span>
-              <small>{example.note}</small>
+
+      <div
+        className={`rule-tab-panel ${activeTab}`}
+        role="tabpanel"
+        id={`rule-tab-${activeTab}`}
+        aria-labelledby={`rule-tab-button-${activeTab}`}
+      >
+        {activeTab === 'quick' && (
+          <>
+            <div className="current-task">
+              <span>当前要做</span>
+              <strong>{getPhaseTask(game.phase)}</strong>
             </div>
-          ))}
-        </div>
-        <div className="hand-guide-grid">
-          {HAND_RULE_GUIDE.map((item) => {
-            const score = HAND_SCORES[item.hand];
-            return (
-              <article className="hand-rule-card" key={item.hand}>
-                <div className="hand-rule-card-top">
-                  <div>
-                    <span className="hand-rule-name">{score.name}</span>
-                    <span className="hand-rule-score">
-                      {score.chips} 筹码 ×{score.mult}
-                    </span>
-                  </div>
-                  <em>{item.badge}</em>
+            <div className="rule-card-grid">
+              {QUICK_RULES.map((rule) => (
+                <article className="rule-info-card" key={rule.title}>
+                  <span>{rule.title}</span>
+                  <p>{rule.body}</p>
+                </article>
+              ))}
+            </div>
+            <div className="publish-note">
+              <span>线上说明</span>
+              <p>
+                这是独立制作的《盲注回响 / Ante Echo》，非官方作品，不使用原版素材或受保护文案。线上版本不需要你的电脑保持开机；存档只保存在当前浏览器，可在设置中导出和导入备份。
+              </p>
+              {FEEDBACK_URL ? <a href={FEEDBACK_URL}>反馈问题</a> : <small>反馈入口待开放</small>}
+            </div>
+          </>
+        )}
+
+        {activeTab === 'hands' && (
+          <section className="hand-guide" aria-labelledby="hand-guide-title">
+            <div className="hand-guide-header">
+              <div>
+                <span>牌型速查</span>
+                <h3 id="hand-guide-title">1 到 5 张都能出，系统会取最佳牌型</h3>
+              </div>
+              <p>顺子、同花、葫芦和特殊牌型通常要求 5 张；对子、两对、三条、四条可以少于 5 张成立。</p>
+            </div>
+            <div className="hand-rule-examples" aria-label="常见边界例子">
+              {HAND_RULE_EXAMPLES.map((example) => (
+                <div className="hand-rule-example" key={example.pattern}>
+                  <strong>{example.pattern}</strong>
+                  <span>→ {example.result}</span>
+                  <small>{example.note}</small>
                 </div>
-                <HandExampleCards cards={item.example} />
-                <p>{item.rule}</p>
-              </article>
-            );
-          })}
-        </div>
-      </section>
-      <ol>
-        <li>一局由多个层级组成，每个层级按小盲、大盲、首领盲注推进。</li>
-        <li>每个盲注有目标分数。达到目标就进入商店；出牌次数用完还没达标就失败。</li>
-        <li>每次可选择 1 到 5 张手牌出牌，系统会识别这组牌的最佳牌型。</li>
-        <li>得分公式是：牌型基础筹码加计分牌筹码，再乘以牌型倍率。</li>
-        <li>弃牌不会得分，但会换新牌；弃牌次数有限。</li>
-        <li>小丑放在槽位里，不会被打出；它们会在结算时从左到右触发。</li>
-        <li>商店商品按权重出现；刷新从 $3 起，每次刷新后变贵，保留资金会在盲注结束时产生利息。</li>
-        <li>优惠券分为基础券和升级券。基础券可直接在商店出现，升级券需要先买下同组基础券后才会进入商店池。</li>
-        <li>星球牌会提升指定牌型等级，让之后同类牌型的基础筹码和倍率变高。</li>
-        <li>塔罗牌用来改花色、复制牌、删除牌、增强牌或直接获得资金。</li>
-        <li>增强牌会改变计分方式：奖励牌加筹码、倍率牌加倍率、万能牌帮助组成同花、钢铁牌留在手牌中放大倍率、黄金牌通关盲注后给钱。</li>
-        <li>补充包有标准、星球、塔罗、小丑和幻灵类型；开包后选择 1 张，或跳过保留当前构筑。</li>
-        <li>幻灵牌通常是强收益加明确代价：可能创建小丑、复制牌、删牌、强化牌或升级牌型，但也可能扣钱、清空资金或牺牲小丑。</li>
-        <li>小盲和大盲可以跳过。跳过不会获得普通奖励，但会得到一个标记，之后在下一次商店或下一场盲注兑现。</li>
-        <li>首领盲注会提前展示特殊规则，例如某些牌不计分、不能重复牌型、限制牌型、手牌变少或小丑暂时失效；这些限制只影响当前盲注，进入商店后会清除。</li>
-        <li>优惠券是长期效果，买下后会持续改变槽位、商店价格、盲注奖励或首领目标。</li>
-        <li>长期资料包含初始牌组、难度、无尽模式、图鉴、解锁、统计和设置；这些资料会保存在本机。</li>
-        <li>结算反馈、数字递增、音效、快速模式和键盘操作会帮助你读懂每手牌。</li>
-      </ol>
-      <div className="publish-note">
-        <span>线上说明</span>
-        <p>
-          这是独立制作的《盲注回响 / Ante Echo》，非官方作品，不使用原版素材或受保护文案。线上版本不需要你的电脑保持开机；存档只保存在当前浏览器，可在设置中导出和导入备份。
-        </p>
-        {FEEDBACK_URL ? <a href={FEEDBACK_URL}>反馈问题</a> : <small>反馈入口待开放</small>}
+              ))}
+            </div>
+            <div className="hand-guide-grid">
+              {HAND_RULE_GUIDE.map((item) => {
+                const score = HAND_SCORES[item.hand];
+                return (
+                  <article className="hand-rule-card" key={item.hand}>
+                    <div className="hand-rule-card-top">
+                      <div>
+                        <span className="hand-rule-name">{score.name}</span>
+                        <span className="hand-rule-score">
+                          {score.chips} 筹码 ×{score.mult}
+                        </span>
+                      </div>
+                      <em>{item.badge}</em>
+                    </div>
+                    <HandExampleCards cards={item.example} />
+                    <p>{item.rule}</p>
+                  </article>
+                );
+              })}
+            </div>
+          </section>
+        )}
+
+        {activeTab === 'scoring' && (
+          <section className="rule-section">
+            <div className="rule-section-title">
+              <span>核心公式</span>
+              <h3>最终得分 = Chips × Mult</h3>
+              <p>筹码决定底盘，倍率决定爆发。+Mult 先把倍率加高，xMult 再把倍率整体放大。</p>
+            </div>
+            <div className="rule-flow-list">
+              {SCORING_STEPS.map((step, index) => (
+                <article className="rule-flow-step" key={step.title}>
+                  <em>{index + 1}</em>
+                  <div>
+                    <strong>{step.title}</strong>
+                    <p>{step.body}</p>
+                  </div>
+                </article>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {activeTab === 'cards' && (
+          <section className="rule-section">
+            <div className="rule-section-title">
+              <span>牌与能力</span>
+              <h3>普通牌、增强牌和消耗牌共同改变构筑</h3>
+            </div>
+            <div className="enhancement-rule-grid">
+              {ENHANCEMENT_RULES.map((rule) => (
+                <article className={`enhancement-rule-card ${rule.id}`} key={rule.id}>
+                  <strong>{ENHANCEMENT_NAMES[rule.id]}</strong>
+                  <p>{rule.body}</p>
+                </article>
+              ))}
+            </div>
+            <div className="rule-card-grid">
+              {CARD_RULES.map((rule) => (
+                <article className="rule-info-card" key={rule.title}>
+                  <span>{rule.title}</span>
+                  <p>{rule.body}</p>
+                </article>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {activeTab === 'shop' && (
+          <section className="rule-section">
+            <div className="rule-section-title">
+              <span>商店构筑</span>
+              <h3>买、刷、留钱都会改变后续路线</h3>
+            </div>
+            <div className="rule-card-grid">
+              {SHOP_RULES.map((rule) => (
+                <article className="rule-info-card" key={rule.title}>
+                  <span>{rule.title}</span>
+                  <p>{rule.body}</p>
+                </article>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {activeTab === 'boss' && (
+          <section className="rule-section">
+            <div className="rule-section-title">
+              <span>首领和跳过</span>
+              <h3>Boss 打断惯性，Tag 奖励改变节奏</h3>
+            </div>
+            <div className="rule-card-grid">
+              {BOSS_RULES.map((rule) => (
+                <article className="rule-info-card danger" key={rule.title}>
+                  <span>{rule.title}</span>
+                  <p>{rule.body}</p>
+                </article>
+              ))}
+            </div>
+          </section>
+        )}
       </div>
     </section>
   );

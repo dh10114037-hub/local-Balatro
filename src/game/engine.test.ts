@@ -1274,6 +1274,14 @@ describe('P5 long-term systems', () => {
         { id: 'joker-offer', kind: 'joker' as const, definitionId: 'mult_starter', price: 2 },
         { id: 'planet-offer', kind: 'consumable' as const, definitionId: 'planet_pair', price: 3 },
         { id: 'voucher-offer', kind: 'voucher' as const, definitionId: 'wide_pockets', price: 8 }
+      ],
+      packChoices: [
+        {
+          instanceId: 'spectral-choice',
+          packId: 'spectral_pack',
+          kind: 'spectral' as const,
+          definitionId: 'spectral_glass_rain'
+        }
       ]
     };
     const profile = recordStatsFromState(recordSeenFromState(createDefaultProfile(), shop), shop);
@@ -1281,6 +1289,7 @@ describe('P5 long-term systems', () => {
 
     expect(repeated.collection.seenJokers).toEqual(['mult_starter']);
     expect(repeated.collection.seenConsumables).toEqual(['planet_pair']);
+    expect(repeated.collection.seenSpectrals).toEqual(['spectral_glass_rain']);
     expect(repeated.collection.seenVouchers).toEqual(['wide_pockets']);
     expect(repeated.unlocks).toContain('stake_red');
   });
@@ -1309,6 +1318,7 @@ describe('P5 long-term systems', () => {
     expect(wonProfile.unlocks).toContain('stake_green');
     expect(reset.stats.winCount).toBe(0);
     expect(reset.collection.seenJokers).toHaveLength(0);
+    expect(reset.collection.seenSpectrals).toHaveLength(0);
   });
 });
 

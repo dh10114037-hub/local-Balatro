@@ -5,6 +5,7 @@ export const PROFILE_SAVE_VERSION = 3;
 const DEFAULT_COLLECTION: CollectionState = {
   seenJokers: [],
   seenConsumables: [],
+  seenSpectrals: [],
   seenBosses: [],
   seenVouchers: []
 };
@@ -123,6 +124,7 @@ export function normalizeProfile(parsed?: Partial<PersistentProfile>): Persisten
     collection: {
       seenJokers: unique(parsed?.collection?.seenJokers ?? fallback.collection.seenJokers),
       seenConsumables: unique(parsed?.collection?.seenConsumables ?? fallback.collection.seenConsumables),
+      seenSpectrals: unique(parsed?.collection?.seenSpectrals ?? fallback.collection.seenSpectrals),
       seenBosses: unique(parsed?.collection?.seenBosses ?? fallback.collection.seenBosses),
       seenVouchers: unique(parsed?.collection?.seenVouchers ?? fallback.collection.seenVouchers)
     },
@@ -177,6 +179,7 @@ export function recordSeenFromState(profile: PersistentProfile, state: GameState
     ...state.packChoices.filter((choice) => choice.kind === 'consumable').map((choice) => choice.definitionId),
     ...state.shopOffers.filter((offer) => offer.kind === 'consumable').map((offer) => offer.definitionId ?? '')
   ];
+  const seenSpectrals = state.packChoices.filter((choice) => choice.kind === 'spectral').map((choice) => choice.definitionId);
   const seenBosses = [state.currentBlind?.bossId ?? '', state.activeBossId ?? ''];
   const seenVouchers = [
     ...state.ownedVouchers,
@@ -186,6 +189,7 @@ export function recordSeenFromState(profile: PersistentProfile, state: GameState
   const collection: CollectionState = {
     seenJokers: addUnique(profile.collection.seenJokers, seenJokers),
     seenConsumables: addUnique(profile.collection.seenConsumables, seenConsumables),
+    seenSpectrals: addUnique(profile.collection.seenSpectrals, seenSpectrals),
     seenBosses: addUnique(profile.collection.seenBosses, seenBosses),
     seenVouchers: addUnique(profile.collection.seenVouchers, seenVouchers)
   };
@@ -193,6 +197,7 @@ export function recordSeenFromState(profile: PersistentProfile, state: GameState
   if (
     sameArray(collection.seenJokers, profile.collection.seenJokers) &&
     sameArray(collection.seenConsumables, profile.collection.seenConsumables) &&
+    sameArray(collection.seenSpectrals, profile.collection.seenSpectrals) &&
     sameArray(collection.seenBosses, profile.collection.seenBosses) &&
     sameArray(collection.seenVouchers, profile.collection.seenVouchers)
   ) {

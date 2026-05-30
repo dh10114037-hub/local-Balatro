@@ -8,7 +8,7 @@ import { CONSUMABLES, ENHANCEMENT_NAMES, getConsumableDefinition, getConsumableL
 import { DECKS, DEFAULT_DECK_ID, getDeckDefinition } from './game/config/decks';
 import { getHandScore, HAND_SCORES, POKER_HAND_ORDER } from './game/config/handScores';
 import { getJokerDefinition, getJokerSellValue, JOKERS } from './game/config/jokers';
-import { getPackDefinition, getSpectralDefinition } from './game/config/packs';
+import { getPackDefinition, getSpectralDefinition, SPECTRAL_CARDS } from './game/config/packs';
 import { DEFAULT_STAKE_ID, getStakeDefinition, isStakeUnlocked, STAKES } from './game/config/stakes';
 import { getTagDefinition, getTagForBlind } from './game/config/tags';
 import { getVoucherDefinition, VOUCHERS } from './game/config/vouchers';
@@ -2192,6 +2192,12 @@ function CollectionPanel({ profile }: { profile: PersistentProfile }) {
           getName={(id) => getConsumableDefinition(id).name}
         />
         <CollectionList
+          title="幻灵图鉴"
+          ids={profile.collection.seenSpectrals}
+          total={SPECTRAL_CARDS.length}
+          getName={(id) => getSpectralDefinition(id).name}
+        />
+        <CollectionList
           title="首领图鉴"
           ids={profile.collection.seenBosses}
           total={BOSSES.length}
@@ -2205,7 +2211,7 @@ function CollectionPanel({ profile }: { profile: PersistentProfile }) {
         />
       </div>
       <p className="profile-note">
-        已见过 {consumableCounts.planet} 张星球牌、{consumableCounts.tarot} 张塔罗牌。解锁会在条件达成后自动保存。
+        已见过 {consumableCounts.planet} 张星球牌、{consumableCounts.tarot} 张塔罗牌、{profile.collection.seenSpectrals.length} 张幻灵牌。解锁会在条件达成后自动保存。
       </p>
       <div className="unlock-list">
         {profile.unlocks.length === 0 ? (

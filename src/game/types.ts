@@ -413,6 +413,7 @@ export type GameState = {
 export type CollectionState = {
   seenJokers: string[];
   seenConsumables: string[];
+  seenSpectrals: string[];
   seenBosses: string[];
   seenVouchers: string[];
 };

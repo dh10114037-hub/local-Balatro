@@ -1411,9 +1411,13 @@ describe('P4 bosses, tags, and vouchers', () => {
 
 describe('P6 bosses and skip rewards', () => {
   it('adds boss advice and hand-interference bosses', () => {
+    expect(BOSSES).toHaveLength(30);
+    expect(new Set(BOSSES.map((boss) => boss.id)).size).toBe(BOSSES.length);
     expect(BOSSES.every((boss) => boss.advice.length > 0)).toBe(true);
     expect(BOSSES.some((boss) => boss.effects.some((effect) => effect.type === 'max_selected_cards'))).toBe(true);
     expect(BOSSES.some((boss) => boss.effects.some((effect) => effect.type === 'hide_face_cards'))).toBe(true);
+    expect(BOSSES.some((boss) => boss.effects.some((effect) => effect.type === 'forbid_hand_types'))).toBe(true);
+    expect(BOSSES.some((boss) => boss.effects.some((effect) => effect.type === 'require_hand_types'))).toBe(true);
   });
 
   it('boss max-selection rule limits playable card selection', () => {
@@ -1443,6 +1447,36 @@ describe('P6 bosses and skip rewards', () => {
 
     expect(next.phase).toBe('shop');
     expect(next.activeBossId).toBeNull();
+  });
+
+  it('boss hand-type rules can forbid or require specific poker hands', () => {
+    const pairGame = {
+      ...startCurrentBlind(createInitialGame('pair-embargo')),
+      activeBossId: 'pair_embargo',
+      targetScore: 999,
+      hand: [card('A', 'spades'), card('A', 'hearts')],
+      drawPile: [],
+      selectedCardIds: ['A-spades', 'A-hearts']
+    };
+    const forbiddenPair = playSelectedCards(pairGame);
+
+    expect(forbiddenPair.lastScoringLog?.handName).toBe('对子');
+    expect(forbiddenPair.lastScoringLog?.finalScore).toBe(0);
+    expect(forbiddenPair.lastScoringLog?.events.some((event) => event.description.includes('禁止'))).toBe(true);
+
+    const straightGame = {
+      ...startCurrentBlind(createInitialGame('pair-order')),
+      activeBossId: 'pair_order',
+      targetScore: 999,
+      hand: [card('2', 'clubs'), card('3', 'diamonds'), card('4', 'hearts'), card('5', 'spades'), card('6', 'clubs')],
+      drawPile: [],
+      selectedCardIds: ['2-clubs', '3-diamonds', '4-hearts', '5-spades', '6-clubs']
+    };
+    const requiredPair = playSelectedCards(straightGame);
+
+    expect(requiredPair.lastScoringLog?.handName).toBe('顺子');
+    expect(requiredPair.lastScoringLog?.finalScore).toBe(0);
+    expect(requiredPair.lastScoringLog?.events.some((event) => event.description.includes('不允许'))).toBe(true);
   });
 
   it('redeems a free shop tag by making current shop offers free', () => {

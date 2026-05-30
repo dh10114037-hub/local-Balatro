@@ -92,6 +92,127 @@ export const BOSSES: BossDefinition[] = [
     description: 'J、Q、K 在手牌中会盖面显示，仍可选择并正常计分。',
     advice: '盖面牌仍是真实牌；记住抽牌顺序，或先用弃牌整理风险。',
     effects: [{ type: 'hide_face_cards' }]
+  },
+  {
+    id: 'diamond_lock',
+    name: '方片封锁',
+    description: '方片牌可以组成牌型，但计分时不提供筹码，也不触发计分牌效果。',
+    advice: '方片只拿来凑形状；把增强牌和高点数留给其他花色。',
+    effects: [{ type: 'debuff_suit', suit: 'diamonds' }]
+  },
+  {
+    id: 'club_lock',
+    name: '梅花封锁',
+    description: '梅花牌可以组成牌型，但计分时不提供筹码，也不触发计分牌效果。',
+    advice: '梅花仍能凑顺子或同花，本盲注的主要筹码最好来自其他花色。',
+    effects: [{ type: 'debuff_suit', suit: 'clubs' }]
+  },
+  {
+    id: 'king_tax',
+    name: '王冠税',
+    description: '所有 K 牌在计分时不提供筹码，也不触发计分牌效果。',
+    advice: '不要依赖 K 的高点数；人头路线可以转向 Q/J 或数字牌。',
+    effects: [{ type: 'debuff_rank', rank: 'K' }]
+  },
+  {
+    id: 'queen_tax',
+    name: '后冠税',
+    description: '所有 Q 牌在计分时不提供筹码，也不触发计分牌效果。',
+    advice: 'Q 可以继续凑牌型，但最好不要让它承担增强牌得分。',
+    effects: [{ type: 'debuff_rank', rank: 'Q' }]
+  },
+  {
+    id: 'ten_tax',
+    name: '十点税',
+    description: '所有 10 牌在计分时不提供筹码，也不触发计分牌效果。',
+    advice: '顺子仍能借 10 成形，但最终得分要靠其他计分牌或小丑。',
+    effects: [{ type: 'debuff_rank', rank: '10' }]
+  },
+  {
+    id: 'seven_tax',
+    name: '七点税',
+    description: '所有 7 牌在计分时不提供筹码，也不触发计分牌效果。',
+    advice: '如果你的构筑围绕 7 或奇数牌，本盲注需要临时换路线。',
+    effects: [{ type: 'debuff_rank', rank: '7' }]
+  },
+  {
+    id: 'common_pause',
+    name: '普通停摆',
+    description: '普通小丑在本盲注中暂时不触发。',
+    advice: '检查前期主力是否都是普通小丑；必要时靠牌型等级和增强牌过关。',
+    effects: [{ type: 'disable_joker_rarity', rarity: 'common' }]
+  },
+  {
+    id: 'uncommon_pause',
+    name: '罕见停摆',
+    description: '罕见小丑在本盲注中暂时不触发。',
+    advice: '如果核心倍率来自罕见小丑，优先打基础分更高的 5 张牌型。',
+    effects: [{ type: 'disable_joker_rarity', rarity: 'uncommon' }]
+  },
+  {
+    id: 'opening_drag',
+    name: '开局拖拽',
+    description: '本盲注第一次出牌的最终倍率变为 75%。',
+    advice: '第一手少交关键资源，留一手更强牌给后续正常倍率。',
+    effects: [{ type: 'first_hand_score_factor', factor: 0.75 }]
+  },
+  {
+    id: 'high_gate',
+    name: '高门槛',
+    description: '第一次出牌至少要达到目标分的 45%，否则本手不得分。',
+    advice: '第一手必须认真爆发；不要用低分手牌试探。',
+    effects: [{ type: 'first_hand_min_score_ratio', ratio: 0.45 }]
+  },
+  {
+    id: 'pinched_grip',
+    name: '紧握手牌',
+    description: '本盲注手牌上限减少 2 张。',
+    advice: '弃牌和排序更重要，优先保留能立刻打分的组合。',
+    effects: [{ type: 'hand_size_delta', amount: -2 }]
+  },
+  {
+    id: 'tiny_leash',
+    name: '细绳',
+    description: '本盲注每次最多选择 2 张牌出牌。',
+    advice: '高牌和对子路线更稳；同花、顺子和葫芦会被强烈压制。',
+    effects: [{ type: 'max_selected_cards', max: 2 }]
+  },
+  {
+    id: 'pair_embargo',
+    name: '对子禁令',
+    description: '对子和两对在本盲注中不得分。',
+    advice: '避开低阶对子路线，改打高牌、三条、顺子或同花。',
+    effects: [{ type: 'forbid_hand_types', hands: ['pair', 'two_pair'] }]
+  },
+  {
+    id: 'flush_embargo',
+    name: '同花禁令',
+    description: '同花类牌型在本盲注中不得分。',
+    advice: '不要只按花色收牌；顺子、对子系和人头牌会更可靠。',
+    effects: [{ type: 'forbid_hand_types', hands: ['flush', 'straight_flush', 'royal_flush', 'flush_house', 'flush_five'] }]
+  },
+  {
+    id: 'straight_embargo',
+    name: '顺子禁令',
+    description: '顺子类牌型在本盲注中不得分。',
+    advice: '连续点数不再安全，转向对子、同花或增强牌高牌。',
+    effects: [{ type: 'forbid_hand_types', hands: ['straight', 'straight_flush', 'royal_flush'] }]
+  },
+  {
+    id: 'pair_order',
+    name: '成双命令',
+    description: '本盲注只有对子系牌型可以得分。',
+    advice: '至少凑出一对再出牌；三条、葫芦和四条也能满足规则。',
+    effects: [
+      { type: 'require_hand_types', hands: ['pair', 'two_pair', 'three_of_a_kind', 'full_house', 'four_of_a_kind', 'five_of_a_kind', 'flush_house', 'flush_five'] }
+    ]
+  },
+  {
+    id: 'simple_order',
+    name: '简式命令',
+    description: '本盲注只有高牌、对子或两对可以得分。',
+    advice: '别追复杂 5 张牌型，用小丑和增强牌放大简单手牌。',
+    effects: [{ type: 'require_hand_types', hands: ['high_card', 'pair', 'two_pair'] }]
   }
 ];
 

@@ -909,6 +909,14 @@ function applyBossScoringRules(state: GameState, selectedCards: Card[], log: Sco
       }
     }
 
+    if (effect.type === 'forbid_hand_types' && effect.hands.includes(nextLog.hand)) {
+      return zeroScoringLog(nextLog, '首领规则', `本盲注禁止${nextLog.handName}得分，本手不得分。`);
+    }
+
+    if (effect.type === 'require_hand_types' && !effect.hands.includes(nextLog.hand)) {
+      return zeroScoringLog(nextLog, '首领规则', `本盲注不允许${nextLog.handName}得分，本手不得分。`);
+    }
+
     if (effect.type === 'first_hand_score_factor' && state.playedHandsThisBlind === 0) {
       const finalMult = nextLog.finalMult * effect.factor;
       const adjustedLog = {

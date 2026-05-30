@@ -119,6 +119,8 @@ export type BossEffect =
   | { type: 'no_discards' }
   | { type: 'force_five_cards' }
   | { type: 'first_hand_min_score_ratio'; ratio: number }
+  | { type: 'forbid_hand_types'; hands: PokerHand[] }
+  | { type: 'require_hand_types'; hands: PokerHand[] }
   | { type: 'disable_joker_rarity'; rarity: JokerRarity }
   | { type: 'max_selected_cards'; max: number }
   | { type: 'hide_face_cards' };

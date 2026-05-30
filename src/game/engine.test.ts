@@ -7,7 +7,7 @@ import { getJokerDefinition, getJokerSellValue, JOKERS } from './config/jokers';
 import { PACKS, SPECTRAL_CARDS } from './config/packs';
 import { STAKES } from './config/stakes';
 import { TAGS } from './config/tags';
-import { VOUCHERS } from './config/vouchers';
+import { getVoucherForShop, VOUCHERS } from './config/vouchers';
 import { createStandardDeck, RANKS } from './deck';
 import {
   advanceFromShop,
@@ -1102,6 +1102,19 @@ describe('P3 consumables and deck modification', () => {
     expect(chosen.packChoices).toHaveLength(0);
     expect(chosen.consumables).toHaveLength(1);
   });
+
+  it('adds pack candidates when a pack-choice voucher is owned', () => {
+    const shop = {
+      ...createInitialGame('pack-choice-voucher'),
+      phase: 'shop' as const,
+      money: 5,
+      ownedVouchers: ['pack_preview'],
+      shopOffers: [{ id: 'pack-offer', kind: 'pack' as const, definitionId: 'tarot_pack', price: 4 }]
+    };
+    const opened = buyShopItem(shop, 'pack-offer');
+
+    expect(opened.packChoices).toHaveLength(4);
+  });
 });
 
 describe('P5 packs and consumable experience', () => {
@@ -1228,7 +1241,44 @@ describe('P4 bosses, tags, and vouchers', () => {
   it('defines enough data-driven bosses, tags, and vouchers', () => {
     expect(BOSSES.length).toBeGreaterThanOrEqual(10);
     expect(TAGS.length).toBeGreaterThanOrEqual(10);
-    expect(VOUCHERS.length).toBeGreaterThanOrEqual(10);
+    expect(VOUCHERS).toHaveLength(32);
+    expect(new Set(VOUCHERS.map((voucher) => voucher.id)).size).toBe(VOUCHERS.length);
+    VOUCHERS.filter((voucher) => voucher.tier === 2).forEach((voucher) => {
+      expect(voucher.requiresVoucherId, voucher.id).toBeTruthy();
+      expect(VOUCHERS.some((candidate) => candidate.id === voucher.requiresVoucherId)).toBe(true);
+    });
+  });
+
+  it('keeps voucher upgrade offers locked until the base voucher is owned', () => {
+    const upgradeIds = new Set(VOUCHERS.filter((voucher) => voucher.requiresVoucherId).map((voucher) => voucher.id));
+    const baseOnlyOffers = Array.from({ length: 80 }, (_, index) => getVoucherForShop('voucher-lock', 1, 0, index, []));
+    const upgradedOffers = Array.from({ length: 80 }, (_, index) => getVoucherForShop('voucher-lock', 1, 0, index, ['wide_pockets']));
+
+    expect(baseOnlyOffers.every((voucher) => !voucher || !upgradeIds.has(voucher.id))).toBe(true);
+    expect(upgradedOffers.some((voucher) => voucher?.id === 'wide_locker')).toBe(true);
+  });
+
+  it('applies voucher effects to shop size, interest, and reroll floors', () => {
+    const shop = {
+      ...createInitialGame('voucher-effect-shop'),
+      phase: 'shop' as const,
+      ownedVouchers: ['extra_shelf'],
+      money: 20,
+      shopRerollCost: STARTING_REROLL_COST
+    };
+    const refreshed = refreshShop(shop);
+
+    expect(refreshed.shopOffers).toHaveLength(5);
+    expect(calculateInterest(30, { ownedVouchers: ['money_ladder', 'small_savings'] })).toBe(7);
+
+    const freeRefresh = refreshShop({
+      ...shop,
+      ownedVouchers: ['cheap_shuffle', 'soft_shuffle'],
+      shopRerollCost: 0
+    });
+
+    expect(freeRefresh.money).toBe(20);
+    expect(freeRefresh.shopRerollCost).toBe(2);
   });
 
   it('skips small and big blinds for a tag without ordinary reward', () => {

@@ -143,6 +143,11 @@ export type VoucherEffect =
   | { type: 'extra_hand_size'; amount: number }
   | { type: 'extra_hand_per_blind'; amount: number }
   | { type: 'extra_discard_per_blind'; amount: number }
+  | { type: 'extra_shop_offer'; amount: number }
+  | { type: 'extra_pack_choice'; amount: number }
+  | { type: 'interest_cap_bonus'; amount: number }
+  | { type: 'interest_step_reduction'; amount: number }
+  | { type: 'shop_item_weight_bonus'; category: 'joker' | 'tarot' | 'planet' | 'pack' | 'voucher'; amount: number }
   | { type: 'reroll_discount'; amount: number }
   | { type: 'shop_discount'; amount: number }
   | { type: 'pack_discount'; amount: number }
@@ -371,6 +376,10 @@ export type VoucherDefinition = {
   name: string;
   price: number;
   description: string;
+  tier?: 1 | 2;
+  pairId?: string;
+  requiresVoucherId?: string;
+  unlockHint?: string;
   effects: VoucherEffect[];
 };
 

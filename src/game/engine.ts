@@ -110,6 +110,15 @@ function sumVoucherEffect(state: Pick<GameState, 'ownedVouchers'>, type: Voucher
     .reduce((total, effect) => total + ('amount' in effect ? effect.amount : 0), 0);
 }
 
+function sumShopItemWeightBonus(
+  state: Pick<GameState, 'ownedVouchers'>,
+  category: keyof typeof SHOP_ITEM_WEIGHTS
+): number {
+  return getVoucherEffects(state)
+    .filter((effect) => effect.type === 'shop_item_weight_bonus' && effect.category === category)
+    .reduce((total, effect) => total + (effect.type === 'shop_item_weight_bonus' ? effect.amount : 0), 0);
+}
+
 type JokerMoneyEffectType = 'blind_clear_money' | 'reroll_discount' | 'sell_bonus_money';
 
 function sumJokerMoneyEffect(state: Pick<GameState, 'jokers'>, type: JokerMoneyEffectType): number {
@@ -119,8 +128,16 @@ function sumJokerMoneyEffect(state: Pick<GameState, 'jokers'>, type: JokerMoneyE
     .reduce((total, effect) => total + (effect.type === type ? effect.amount : 0), 0);
 }
 
-export function calculateInterest(money: number): number {
-  return Math.max(0, Math.min(MAX_INTEREST_PAYOUT, Math.floor(money / INTEREST_MONEY_STEP)));
+function getInterestStep(state?: Pick<GameState, 'ownedVouchers'>): number {
+  return Math.max(1, INTEREST_MONEY_STEP - (state ? sumVoucherEffect(state, 'interest_step_reduction') : 0));
+}
+
+function getInterestCap(state?: Pick<GameState, 'ownedVouchers'>): number {
+  return MAX_INTEREST_PAYOUT + (state ? sumVoucherEffect(state, 'interest_cap_bonus') : 0);
+}
+
+export function calculateInterest(money: number, state?: Pick<GameState, 'ownedVouchers'>): number {
+  return Math.max(0, Math.min(getInterestCap(state), Math.floor(money / getInterestStep(state))));
 }
 
 function getBossTargetDiscount(state: Pick<GameState, 'ownedVouchers'>): number {
@@ -291,6 +308,14 @@ function createShopOffers(state: GameState, refreshCount: number, adjustments: S
   const offers: ShopItem[] = [];
   const shopDiscount = sumVoucherEffect(state, 'shop_discount') + (adjustments.shopDiscount ?? 0);
   const packDiscount = sumVoucherEffect(state, 'pack_discount') + shopDiscount;
+  const offerCount = SHOP_OFFER_COUNT + sumVoucherEffect(state, 'extra_shop_offer');
+  const shopWeights = {
+    joker: SHOP_ITEM_WEIGHTS.joker + sumShopItemWeightBonus(state, 'joker'),
+    tarot: SHOP_ITEM_WEIGHTS.tarot + sumShopItemWeightBonus(state, 'tarot'),
+    planet: SHOP_ITEM_WEIGHTS.planet + sumShopItemWeightBonus(state, 'planet'),
+    pack: SHOP_ITEM_WEIGHTS.pack + sumShopItemWeightBonus(state, 'pack'),
+    voucher: SHOP_ITEM_WEIGHTS.voucher + sumShopItemWeightBonus(state, 'voucher')
+  } as const;
 
   function addJokerOffer(definitionId: string) {
     const key = `joker:${definitionId}`;
@@ -377,9 +402,9 @@ function createShopOffers(state: GameState, refreshCount: number, adjustments: S
   }
 
   let attempts = 0;
-  while (offers.length < SHOP_OFFER_COUNT && attempts < SHOP_OFFER_COUNT * 20) {
+  while (offers.length < offerCount && attempts < offerCount * 20) {
     attempts += 1;
-    const category = pickWeighted(rng, SHOP_ITEM_WEIGHTS);
+    const category = pickWeighted(rng, shopWeights);
 
     if (category === 'joker') {
       addWeightedJokerOffer();
@@ -394,7 +419,7 @@ function createShopOffers(state: GameState, refreshCount: number, adjustments: S
     }
   }
 
-  while (offers.length < SHOP_OFFER_COUNT) {
+  while (offers.length < offerCount) {
     addWeightedJokerOffer();
   }
 
@@ -685,9 +710,10 @@ function createPackChoices(
   let nextConsumableNumber = state.nextConsumableInstanceNumber;
   let nextCardCopyNumber = state.nextCardCopyNumber;
   let choices: PackChoice[] = [];
+  const choiceCount = pack.choiceCount + sumVoucherEffect(state, 'extra_pack_choice');
 
   if (pack.kind === 'standard') {
-    choices = Array.from({ length: pack.choiceCount }, (_, index) => ({
+    choices = Array.from({ length: choiceCount }, (_, index) => ({
       instanceId: `pack-choice-${state.nextCardCopyNumber + index}`,
       packId: pack.id,
       kind: 'playing_card' as const,
@@ -697,7 +723,7 @@ function createPackChoices(
   }
 
   if (pack.kind === 'planet') {
-    choices = pickUniqueDefinitions(PLANET_CARDS, rng, pack.choiceCount).map((definition) => {
+    choices = pickUniqueDefinitions(PLANET_CARDS, rng, choiceCount).map((definition) => {
       const choice = createConsumableInstance(definition.id, nextConsumableNumber);
       nextConsumableNumber += 1;
       return {
@@ -709,7 +735,7 @@ function createPackChoices(
   }
 
   if (pack.kind === 'tarot') {
-    choices = pickUniqueDefinitions(TAROT_CARDS, rng, pack.choiceCount).map((definition) => {
+    choices = pickUniqueDefinitions(TAROT_CARDS, rng, choiceCount).map((definition) => {
       const choice = createConsumableInstance(definition.id, nextConsumableNumber);
       nextConsumableNumber += 1;
       return {
@@ -721,7 +747,7 @@ function createPackChoices(
   }
 
   if (pack.kind === 'joker') {
-    choices = pickUniqueDefinitions(JOKERS, rng, pack.choiceCount).map((definition, index) => ({
+    choices = pickUniqueDefinitions(JOKERS, rng, choiceCount).map((definition, index) => ({
       instanceId: `pack-joker-${state.nextJokerInstanceNumber + index}`,
       packId: pack.id,
       kind: 'joker' as const,
@@ -730,7 +756,7 @@ function createPackChoices(
   }
 
   if (pack.kind === 'spectral') {
-    choices = pickUniqueDefinitions(SPECTRAL_CARDS, rng, pack.choiceCount).map((definition, index) => ({
+    choices = pickUniqueDefinitions(SPECTRAL_CARDS, rng, choiceCount).map((definition, index) => ({
       instanceId: `pack-spectral-${state.ante}-${state.blindIndex}-${state.shopRefreshCount}-${index}`,
       packId: pack.id,
       kind: 'spectral' as const,
@@ -1431,7 +1457,7 @@ export function playSelectedCards(state: GameState): GameState {
   const clearedBlind = currentScore >= state.targetScore;
   const goldPayout = clearedBlind ? countGoldHeldCards(remainingHand) * GOLD_CARD_PAYOUT : 0;
   const jokerPayout = clearedBlind ? sumJokerMoneyEffect(state, 'blind_clear_money') : 0;
-  const interestPayout = clearedBlind ? calculateInterest(state.money) : 0;
+  const interestPayout = clearedBlind ? calculateInterest(state.money, state) : 0;
   const failedBlind = !clearedBlind && handsRemaining === 0;
   const finalRunWon = clearedBlind && !state.endless && state.ante >= MAX_ANTE && state.blindIndex === 2;
   const reward = (state.currentBlind?.reward ?? 0) + sumVoucherEffect(state, 'bonus_blind_reward');

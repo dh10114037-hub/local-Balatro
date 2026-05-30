@@ -4,7 +4,13 @@ import './App.css';
 import packageJson from '../package.json';
 import { MAX_ANTE } from './game/config/blinds';
 import { BOSSES, getBossDefinition } from './game/config/bosses';
-import { CONSUMABLES, ENHANCEMENT_NAMES, getConsumableDefinition, getConsumableLabel } from './game/config/consumables';
+import {
+  ENHANCEMENT_NAMES,
+  getConsumableDefinition,
+  getConsumableLabel,
+  PLANET_CARDS,
+  TAROT_CARDS
+} from './game/config/consumables';
 import { DECKS, DEFAULT_DECK_ID, getDeckDefinition } from './game/config/decks';
 import { getHandScore, HAND_SCORES, POKER_HAND_ORDER } from './game/config/handScores';
 import { getJokerDefinition, getJokerSellValue, JOKERS } from './game/config/jokers';
@@ -1479,12 +1485,14 @@ function RulesPanel({ game }: { game: GameState }) {
         <li>弃牌不会得分，但会换新牌；弃牌次数有限。</li>
         <li>小丑放在槽位里，不会被打出；它们会在结算时从左到右触发。</li>
         <li>商店商品按权重出现；刷新从 $3 起，每次刷新后变贵，保留资金会在盲注结束时产生利息。</li>
+        <li>优惠券分为基础券和升级券。基础券可直接在商店出现，升级券需要先买下同组基础券后才会进入商店池。</li>
         <li>星球牌会提升指定牌型等级，让之后同类牌型的基础筹码和倍率变高。</li>
         <li>塔罗牌用来改花色、复制牌、删除牌、增强牌或直接获得资金。</li>
         <li>增强牌会改变计分方式：奖励牌加筹码、倍率牌加倍率、万能牌帮助组成同花、钢铁牌留在手牌中放大倍率、黄金牌通关盲注后给钱。</li>
         <li>补充包有标准、星球、塔罗、小丑和幻灵类型；开包后选择 1 张，或跳过保留当前构筑。</li>
+        <li>幻灵牌通常是强收益加明确代价：可能创建小丑、复制牌、删牌、强化牌或升级牌型，但也可能扣钱、清空资金或牺牲小丑。</li>
         <li>小盲和大盲可以跳过。跳过不会获得普通奖励，但会得到一个标记，之后在下一次商店或下一场盲注兑现。</li>
-        <li>首领盲注会提前展示特殊规则，例如某些牌不计分、不能重复牌型、手牌变少或小丑暂时失效。</li>
+        <li>首领盲注会提前展示特殊规则，例如某些牌不计分、不能重复牌型、限制牌型、手牌变少或小丑暂时失效；这些限制只影响当前盲注，进入商店后会清除。</li>
         <li>优惠券是长期效果，买下后会持续改变槽位、商店价格、盲注奖励或首领目标。</li>
         <li>长期资料包含初始牌组、难度、无尽模式、图鉴、解锁、统计和设置；这些资料会保存在本机。</li>
         <li>结算反馈、数字递增、音效、快速模式和键盘操作会帮助你读懂每手牌。</li>
@@ -2085,13 +2093,17 @@ function CollectionList({
   title,
   ids,
   total,
-  getName
+  getName,
+  getDescription
 }: {
   title: string;
   ids: string[];
   total: number;
   getName: (id: string) => string;
+  getDescription?: (id: string) => string;
 }) {
+  const recentIds = ids.slice(-6).reverse();
+
   return (
     <div className="collection-block">
       <div className="collection-head">
@@ -2102,11 +2114,17 @@ function CollectionList({
       </div>
       <div className="collection-list">
         {ids.length === 0 ? (
-          <span>尚未见过</span>
+          <span className="collection-empty">尚未见过</span>
         ) : (
-          ids.slice(0, 10).map((id) => <span key={id}>{getName(id)}</span>)
+          recentIds.map((id) => (
+            <span className="collection-entry" key={id}>
+              <strong>{getName(id)}</strong>
+              {getDescription ? <small>{getDescription(id)}</small> : null}
+            </span>
+          ))
         )}
       </div>
+      {ids.length > 6 ? <p className="collection-recent">显示最近见过的 6 项。</p> : null}
     </div>
   );
 }
@@ -2174,6 +2192,8 @@ function StatsPanel({ profile }: { profile: PersistentProfile }) {
 
 function CollectionPanel({ profile }: { profile: PersistentProfile }) {
   const consumableCounts = getConsumableKindCounts(profile.collection.seenConsumables);
+  const seenPlanets = profile.collection.seenConsumables.filter((id) => getConsumableDefinition(id).kind === 'planet');
+  const seenTarots = profile.collection.seenConsumables.filter((id) => getConsumableDefinition(id).kind === 'tarot');
 
   return (
     <section>
@@ -2184,34 +2204,49 @@ function CollectionPanel({ profile }: { profile: PersistentProfile }) {
           ids={profile.collection.seenJokers}
           total={JOKERS.length}
           getName={(id) => getJokerDefinition(id).name}
+          getDescription={(id) => getJokerDefinition(id).description}
         />
         <CollectionList
-          title="星球与塔罗"
-          ids={profile.collection.seenConsumables}
-          total={CONSUMABLES.length}
+          title="星球图鉴"
+          ids={seenPlanets}
+          total={PLANET_CARDS.length}
           getName={(id) => getConsumableDefinition(id).name}
+          getDescription={(id) => getConsumableDefinition(id).description}
+        />
+        <CollectionList
+          title="塔罗图鉴"
+          ids={seenTarots}
+          total={TAROT_CARDS.length}
+          getName={(id) => getConsumableDefinition(id).name}
+          getDescription={(id) => getConsumableDefinition(id).description}
         />
         <CollectionList
           title="幻灵图鉴"
           ids={profile.collection.seenSpectrals}
           total={SPECTRAL_CARDS.length}
           getName={(id) => getSpectralDefinition(id).name}
+          getDescription={(id) => getSpectralDefinition(id).description}
         />
         <CollectionList
           title="首领图鉴"
           ids={profile.collection.seenBosses}
           total={BOSSES.length}
           getName={(id) => getBossDefinition(id).name}
+          getDescription={(id) => getBossDefinition(id).description}
         />
         <CollectionList
           title="优惠券图鉴"
           ids={profile.collection.seenVouchers}
           total={VOUCHERS.length}
           getName={(id) => getVoucherDefinition(id).name}
+          getDescription={(id) => {
+            const voucher = getVoucherDefinition(id);
+            return `${voucher.tier === 2 ? '升级券' : '基础券'}：${voucher.description}`;
+          }}
         />
       </div>
       <p className="profile-note">
-        已见过 {consumableCounts.planet} 张星球牌、{consumableCounts.tarot} 张塔罗牌、{profile.collection.seenSpectrals.length} 张幻灵牌。解锁会在条件达成后自动保存。
+        已见过 {consumableCounts.planet} 张星球牌、{consumableCounts.tarot} 张塔罗牌、{profile.collection.seenSpectrals.length} 张幻灵牌。图鉴只公开见过的条目，未见过内容会保留为占位。
       </p>
       <div className="unlock-list">
         {profile.unlocks.length === 0 ? (

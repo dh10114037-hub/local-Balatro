@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { BOSSES } from './config/bosses';
 import { MAX_ANTE } from './config/blinds';
-import { getConsumableDefinition } from './config/consumables';
+import { CONSUMABLES, getConsumableDefinition, PLANET_CARDS, TAROT_CARDS } from './config/consumables';
 import { DECKS } from './config/decks';
 import { getJokerDefinition, getJokerSellValue, JOKERS } from './config/jokers';
 import { PACKS, SPECTRAL_CARDS } from './config/packs';
@@ -1704,6 +1704,14 @@ describe('P5 long-term systems', () => {
     expect(repeated.collection.seenSpectrals).toEqual(['spectral_glass_rain']);
     expect(repeated.collection.seenVouchers).toEqual(['wide_pockets']);
     expect(repeated.unlocks).toContain('stake_red');
+  });
+
+  it('keeps collection category totals aligned with content configuration', () => {
+    expect(JOKERS).toHaveLength(64);
+    expect(PLANET_CARDS.length + TAROT_CARDS.length).toBe(CONSUMABLES.length);
+    expect(SPECTRAL_CARDS).toHaveLength(18);
+    expect(BOSSES).toHaveLength(30);
+    expect(VOUCHERS).toHaveLength(32);
   });
 
   it('continues after Ante 8 boss when endless mode is enabled', () => {

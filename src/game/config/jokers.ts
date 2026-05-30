@@ -385,6 +385,204 @@ export const JOKERS: JokerDefinition[] = [
     price: 4,
     description: '卖出时额外获得 $3。',
     effects: [{ type: 'sell_bonus_money', amount: 3 }]
+  },
+  {
+    id: 'high_card_spur',
+    name: '高牌马刺',
+    rarity: 'common',
+    archetypes: ['high_card'],
+    triggerTiming: ['on_play'],
+    triggerText: '出牌结算时触发',
+    conditionText: '打出高牌',
+    price: 3,
+    description: '打出高牌时 +6 倍率。',
+    effects: [{ type: 'hand_add_mult', hand: 'high_card', amount: 6 }]
+  },
+  {
+    id: 'two_pair_bookkeeper',
+    name: '两对账本',
+    rarity: 'common',
+    archetypes: ['pair'],
+    triggerTiming: ['on_play'],
+    triggerText: '出牌结算时触发',
+    conditionText: '打出两对',
+    price: 4,
+    description: '打出两对时 +40 筹码。',
+    effects: [{ type: 'hand_add_chips', hand: 'two_pair', amount: 40 }]
+  },
+  {
+    id: 'triple_blacksmith',
+    name: '三条铁匠',
+    rarity: 'common',
+    archetypes: ['pair'],
+    triggerTiming: ['on_play'],
+    triggerText: '出牌结算时触发',
+    conditionText: '打出三条',
+    price: 4,
+    description: '打出三条时 +50 筹码。',
+    effects: [{ type: 'hand_add_chips', hand: 'three_of_a_kind', amount: 50 }]
+  },
+  {
+    id: 'flush_cartographer',
+    name: '同花制图师',
+    rarity: 'common',
+    archetypes: ['flush', 'suit'],
+    triggerTiming: ['on_play'],
+    triggerText: '出牌结算时触发',
+    conditionText: '打出同花',
+    price: 4,
+    description: '打出同花时 +45 筹码。',
+    effects: [{ type: 'hand_add_chips', hand: 'flush', amount: 45 }]
+  },
+  {
+    id: 'full_house_bell',
+    name: '满堂铃',
+    rarity: 'uncommon',
+    archetypes: ['pair'],
+    triggerTiming: ['on_play'],
+    triggerText: '出牌结算时触发',
+    conditionText: '打出葫芦',
+    price: 5,
+    description: '打出葫芦时 +10 倍率。',
+    effects: [{ type: 'hand_add_mult', hand: 'full_house', amount: 10 }]
+  },
+  {
+    id: 'full_house_mason',
+    name: '葫芦石匠',
+    rarity: 'uncommon',
+    archetypes: ['pair'],
+    triggerTiming: ['on_play'],
+    triggerText: '出牌结算时触发',
+    conditionText: '打出葫芦',
+    price: 5,
+    description: '打出葫芦时 +60 筹码。',
+    effects: [{ type: 'hand_add_chips', hand: 'full_house', amount: 60 }]
+  },
+  {
+    id: 'four_kind_foundry',
+    name: '四条铸炉',
+    rarity: 'uncommon',
+    archetypes: ['pair'],
+    triggerTiming: ['on_play'],
+    triggerText: '出牌结算时触发',
+    conditionText: '打出四条',
+    price: 6,
+    description: '打出四条时 +80 筹码。',
+    effects: [{ type: 'hand_add_chips', hand: 'four_of_a_kind', amount: 80 }]
+  },
+  {
+    id: 'four_kind_booster',
+    name: '四条增压器',
+    rarity: 'rare',
+    archetypes: ['pair'],
+    triggerTiming: ['on_play'],
+    triggerText: '出牌结算时触发',
+    conditionText: '打出四条',
+    price: 7,
+    description: '打出四条时 +14 倍率。',
+    effects: [{ type: 'hand_add_mult', hand: 'four_of_a_kind', amount: 14 }]
+  },
+  {
+    id: 'abstract_masks',
+    name: '抽象面具',
+    rarity: 'common',
+    archetypes: ['general'],
+    triggerTiming: ['on_play'],
+    triggerText: '出牌结算时触发',
+    conditionText: '根据当前小丑数量',
+    price: 4,
+    description: '每拥有 1 张小丑，出牌时 +3 倍率。',
+    effects: [{ type: 'joker_count_add_mult', amountPerJoker: 3 }]
+  },
+  {
+    id: 'short_hand_banner',
+    name: '短手旗',
+    rarity: 'common',
+    archetypes: ['high_card'],
+    triggerTiming: ['on_play'],
+    triggerText: '出牌结算时触发',
+    conditionText: '本手选择不超过 3 张牌',
+    price: 4,
+    description: '选择不超过 3 张牌出牌时 +14 倍率。',
+    effects: [{ type: 'selected_cards_at_most_add_mult', maxCards: 3, amount: 14 }]
+  },
+  {
+    id: 'even_lantern',
+    name: '偶数灯',
+    rarity: 'common',
+    archetypes: ['general'],
+    triggerTiming: ['scored_card'],
+    triggerText: '计分牌结算时触发',
+    conditionText: '2、4、6、8、10 计分',
+    price: 4,
+    description: '每张计分偶数牌 +4 倍率。',
+    effects: [{ type: 'scored_ranks_add_mult', ranks: ['2', '4', '6', '8', '10'], amount: 4 }]
+  },
+  {
+    id: 'odd_lantern',
+    name: '奇数灯',
+    rarity: 'common',
+    archetypes: ['general'],
+    triggerTiming: ['scored_card'],
+    triggerText: '计分牌结算时触发',
+    conditionText: 'A、3、5、7、9 计分',
+    price: 4,
+    description: '每张计分奇数牌 +25 筹码。',
+    effects: [{ type: 'scored_ranks_add_chips', ranks: ['A', '3', '5', '7', '9'], amount: 25 }]
+  },
+  {
+    id: 'ace_scholar',
+    name: '尖牌学者',
+    rarity: 'uncommon',
+    archetypes: ['high_card', 'face'],
+    triggerTiming: ['scored_card'],
+    triggerText: '计分牌结算时触发',
+    conditionText: 'A 计分',
+    price: 5,
+    description: '每张计分 A +20 筹码并 +4 倍率。',
+    effects: [
+      { type: 'rank_add_chips', rank: 'A', amount: 20 },
+      { type: 'rank_add_mult', rank: 'A', amount: 4 }
+    ]
+  },
+  {
+    id: 'ten_four_radio',
+    name: '十四号电台',
+    rarity: 'uncommon',
+    archetypes: ['general'],
+    triggerTiming: ['scored_card'],
+    triggerText: '计分牌结算时触发',
+    conditionText: '10 或 4 计分',
+    price: 5,
+    description: '每张计分 10 或 4 +10 筹码并 +4 倍率。',
+    effects: [
+      { type: 'scored_ranks_add_chips', ranks: ['10', '4'], amount: 10 },
+      { type: 'scored_ranks_add_mult', ranks: ['10', '4'], amount: 4 }
+    ]
+  },
+  {
+    id: 'diamond_drummer',
+    name: '方块鼓手',
+    rarity: 'common',
+    archetypes: ['suit', 'flush'],
+    triggerTiming: ['scored_card'],
+    triggerText: '计分牌结算时触发',
+    conditionText: '方块牌计分',
+    price: 3,
+    description: '每张计分方块牌 +2 倍率。',
+    effects: [{ type: 'scored_suit_add_mult', suit: 'diamonds', amount: 2 }]
+  },
+  {
+    id: 'heart_smith',
+    name: '红心铁匠',
+    rarity: 'common',
+    archetypes: ['suit', 'flush'],
+    triggerTiming: ['scored_card'],
+    triggerText: '计分牌结算时触发',
+    conditionText: '红心牌计分',
+    price: 3,
+    description: '每张计分红心牌 +12 筹码。',
+    effects: [{ type: 'scored_suit_add_chips', suit: 'hearts', amount: 12 }]
   }
 ];
 

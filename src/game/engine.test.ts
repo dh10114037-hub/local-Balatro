@@ -83,6 +83,116 @@ function triggeredJokerEvents(log: ReturnType<typeof scoreWithJoker>) {
   return log.events.filter((event) => event.stage === 'joker' && event.sourceId === 'joker-test');
 }
 
+type JokerLogicCase =
+  | {
+      kind?: 'scoring';
+      triggerCards: Card[];
+      skipCards?: Card[];
+      triggerOptions?: JokerScoreOptions;
+      skipOptions?: JokerScoreOptions;
+    }
+  | { kind: 'copy' | 'blind_end' | 'shop' | 'buy_sell' };
+
+const HEART_FLUSH = [card('2', 'hearts'), card('5', 'hearts'), card('7', 'hearts'), card('9', 'hearts'), card('K', 'hearts')];
+const STRAIGHT = [card('2', 'clubs'), card('3', 'diamonds'), card('4', 'hearts'), card('5', 'spades'), card('6', 'clubs')];
+const FULL_HOUSE = [card('7', 'spades'), card('7', 'hearts'), card('7', 'diamonds'), card('8', 'clubs'), card('8', 'diamonds')];
+const FOUR_KIND = [card('9', 'spades'), card('9', 'hearts'), card('9', 'clubs'), card('9', 'diamonds')];
+
+const JOKER_LOGIC_CASES: Record<string, JokerLogicCase> = {
+  chip_starter: { triggerCards: [card('A', 'spades')] },
+  mult_starter: { triggerCards: [card('A', 'spades')] },
+  magnifier: { triggerCards: [card('A', 'spades')] },
+  pair_teacher: { triggerCards: [card('A', 'spades'), card('A', 'hearts')], skipCards: [card('A', 'spades'), card('K', 'hearts')] },
+  flush_painter: { triggerCards: HEART_FLUSH, skipCards: [card('A', 'spades')] },
+  straight_runner: { triggerCards: STRAIGHT, skipCards: [card('A', 'spades'), card('A', 'hearts')] },
+  heart_drummer: { triggerCards: [card('A', 'hearts')], skipCards: [card('A', 'spades')] },
+  spade_smith: { triggerCards: [card('A', 'spades')], skipCards: [card('A', 'hearts')] },
+  face_tax: { triggerCards: [card('K', 'spades')], skipCards: [card('A', 'spades')] },
+  discard_abacus: {
+    triggerCards: [card('A', 'spades')],
+    skipCards: [card('A', 'spades')],
+    triggerOptions: { discardsRemaining: 2 },
+    skipOptions: { discardsRemaining: 0 }
+  },
+  money_pouch: {
+    triggerCards: [card('A', 'spades')],
+    skipCards: [card('A', 'spades')],
+    triggerOptions: { money: 9 },
+    skipOptions: { money: 0 }
+  },
+  opening_firework: {
+    triggerCards: [card('A', 'spades')],
+    skipCards: [card('A', 'spades')],
+    triggerOptions: { playedHandsThisBlind: 0 },
+    skipOptions: { playedHandsThisBlind: 1 }
+  },
+  final_push: {
+    triggerCards: [card('A', 'spades')],
+    skipCards: [card('A', 'spades')],
+    triggerOptions: { handsRemainingBeforePlay: 1 },
+    skipOptions: { handsRemainingBeforePlay: 2 }
+  },
+  counter: { triggerCards: [card('A', 'spades')] },
+  ace_fan: { triggerCards: [card('A', 'spades')], skipCards: [card('K', 'spades')] },
+  lucky_seven: { triggerCards: [card('7', 'spades')], skipCards: [card('8', 'spades')] },
+  high_card_patch: { triggerCards: [card('A', 'spades')], skipCards: [card('A', 'spades'), card('A', 'hearts')] },
+  triple_singer: {
+    triggerCards: [card('A', 'spades'), card('A', 'hearts'), card('A', 'clubs')],
+    skipCards: [card('A', 'spades'), card('A', 'hearts')]
+  },
+  echo_joker: { kind: 'copy' },
+  pair_seed: { triggerCards: [card('A', 'spades'), card('A', 'hearts')], skipCards: [card('A', 'spades'), card('K', 'hearts')] },
+  single_spotlight: { triggerCards: [card('A', 'spades')], skipCards: [card('A', 'spades'), card('A', 'hearts')] },
+  pair_archivist: { triggerCards: [card('A', 'spades'), card('A', 'hearts')], skipCards: [card('A', 'spades'), card('K', 'hearts')] },
+  two_pair_tuner: {
+    triggerCards: [card('A', 'spades'), card('A', 'hearts'), card('K', 'clubs'), card('K', 'diamonds')],
+    skipCards: [card('A', 'spades'), card('A', 'hearts'), card('K', 'clubs')]
+  },
+  royal_clerk: { triggerCards: [card('K', 'spades')], skipCards: [card('A', 'spades')] },
+  club_drummer: { triggerCards: [card('A', 'clubs')], skipCards: [card('A', 'hearts')] },
+  straight_doubler: { triggerCards: STRAIGHT, skipCards: [card('A', 'spades'), card('A', 'hearts')] },
+  glass_prism: { triggerCards: [card('A', 'spades', 'glass')], skipCards: [card('A', 'spades', 'bonus')] },
+  steel_fund: {
+    triggerCards: [card('2', 'clubs')],
+    skipCards: [card('2', 'clubs')],
+    triggerOptions: { heldCards: [card('A', 'hearts', 'steel')] },
+    skipOptions: { heldCards: [card('A', 'hearts')] }
+  },
+  first_card_echo: {
+    triggerCards: [card('A', 'spades')],
+    skipCards: [card('A', 'spades')],
+    skipOptions: { disabledCardReasons: { 'A-spades': '测试：这张牌不计分' } }
+  },
+  cashout_clown: { kind: 'blind_end' },
+  coupon_clip: { kind: 'shop' },
+  parting_gift: { kind: 'buy_sell' },
+  high_card_spur: { triggerCards: [card('A', 'spades')], skipCards: [card('A', 'spades'), card('A', 'hearts')] },
+  two_pair_bookkeeper: {
+    triggerCards: [card('A', 'spades'), card('A', 'hearts'), card('K', 'clubs'), card('K', 'diamonds')],
+    skipCards: [card('A', 'spades'), card('A', 'hearts'), card('K', 'clubs')]
+  },
+  triple_blacksmith: {
+    triggerCards: [card('A', 'spades'), card('A', 'hearts'), card('A', 'clubs')],
+    skipCards: [card('A', 'spades'), card('A', 'hearts')]
+  },
+  flush_cartographer: { triggerCards: HEART_FLUSH, skipCards: [card('A', 'spades')] },
+  full_house_bell: { triggerCards: FULL_HOUSE, skipCards: [card('A', 'spades'), card('A', 'hearts'), card('A', 'clubs')] },
+  full_house_mason: { triggerCards: FULL_HOUSE, skipCards: [card('A', 'spades'), card('A', 'hearts'), card('A', 'clubs')] },
+  four_kind_foundry: { triggerCards: FOUR_KIND, skipCards: [card('A', 'spades'), card('A', 'hearts'), card('A', 'clubs')] },
+  four_kind_booster: { triggerCards: FOUR_KIND, skipCards: [card('A', 'spades'), card('A', 'hearts'), card('A', 'clubs')] },
+  abstract_masks: { triggerCards: [card('A', 'spades')] },
+  short_hand_banner: {
+    triggerCards: [card('A', 'spades'), card('K', 'hearts'), card('Q', 'clubs')],
+    skipCards: [card('A', 'spades'), card('K', 'hearts'), card('Q', 'clubs'), card('J', 'diamonds')]
+  },
+  even_lantern: { triggerCards: [card('10', 'spades')], skipCards: [card('K', 'spades')] },
+  odd_lantern: { triggerCards: [card('A', 'spades')], skipCards: [card('K', 'spades')] },
+  ace_scholar: { triggerCards: [card('A', 'spades')], skipCards: [card('K', 'spades')] },
+  ten_four_radio: { triggerCards: [card('10', 'spades')], skipCards: [card('K', 'spades')] },
+  diamond_drummer: { triggerCards: [card('A', 'diamonds')], skipCards: [card('A', 'spades')] },
+  heart_smith: { triggerCards: [card('A', 'hearts')], skipCards: [card('A', 'spades')] }
+};
+
 describe('P0 engine', () => {
   it('creates a standard 52-card deck with unique cards', () => {
     const deck = createStandardDeck();
@@ -319,7 +429,7 @@ describe('P1 run flow', () => {
 
 describe('P2 joker system', () => {
   it('defines a complete data-driven joker roster with metadata', () => {
-    expect(JOKERS).toHaveLength(32);
+    expect(JOKERS).toHaveLength(48);
     expect(new Set(JOKERS.map((joker) => joker.id)).size).toBe(JOKERS.length);
     JOKERS.forEach((joker) => {
       expect(joker.archetypes.length).toBeGreaterThan(0);
@@ -328,6 +438,44 @@ describe('P2 joker system', () => {
       expect(joker.conditionText).not.toBe('');
       expect(getJokerDefinition(joker.id)).toBe(joker);
     });
+  });
+
+  it('keeps a logic validation case for every joker', () => {
+    expect(Object.keys(JOKER_LOGIC_CASES).sort()).toEqual(JOKERS.map((joker) => joker.id).sort());
+  });
+
+  it('triggers and skips every hand-scoring joker in its intended situation', () => {
+    Object.entries(JOKER_LOGIC_CASES)
+      .filter(([, testCase]) => !testCase.kind || testCase.kind === 'scoring')
+      .forEach(([definitionId, testCase]) => {
+        if (testCase.kind && testCase.kind !== 'scoring') return;
+
+        const triggered = scoreWithJoker(definitionId, testCase.triggerCards, testCase.triggerOptions);
+        expect(triggeredJokerEvents(triggered).length, `${definitionId} should trigger`).toBeGreaterThan(0);
+
+        if (testCase.skipCards) {
+          const skipped = scoreWithJoker(definitionId, testCase.skipCards, testCase.skipOptions);
+          expect(triggeredJokerEvents(skipped), `${definitionId} should skip`).toHaveLength(0);
+        }
+      });
+  });
+
+  it('copies the right joker through the copy hook', () => {
+    const result = scorePlayedCardsWithJokers([card('A', 'spades')], {
+      jokers: [
+        { instanceId: 'joker-copy', definitionId: 'echo_joker', level: 0 },
+        { instanceId: 'joker-right', definitionId: 'mult_starter', level: 0 }
+      ],
+      discardsRemaining: 0,
+      handsRemainingBeforePlay: 2,
+      playedHandsThisBlind: 1,
+      money: 0,
+      handLevels: createDefaultHandLevels(),
+      heldCards: []
+    });
+
+    expect(result.triggeredJokerIds).toEqual(['joker-copy', 'joker-right']);
+    expect(result.log.events.find((event) => event.sourceId === 'joker-copy')).toMatchObject({ multDelta: 4 });
   });
 
   it('buys a joker from the shop and removes the offer', () => {

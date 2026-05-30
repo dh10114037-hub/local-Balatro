@@ -196,9 +196,13 @@ export type JokerEffect =
   | { type: 'last_hand_multiply_mult'; factor: number }
   | { type: 'scored_cards_add_chips'; amountPerCard: number }
   | { type: 'scored_cards_at_most_add_mult'; maxCards: number; amount: number }
+  | { type: 'selected_cards_at_most_add_mult'; maxCards: number; amount: number }
   | { type: 'repeat_first_scored_card' }
   | { type: 'rank_add_chips'; rank: Rank; amount: number }
   | { type: 'rank_add_mult'; rank: Rank; amount: number }
+  | { type: 'scored_ranks_add_chips'; ranks: Rank[]; amount: number }
+  | { type: 'scored_ranks_add_mult'; ranks: Rank[]; amount: number }
+  | { type: 'joker_count_add_mult'; amountPerJoker: number }
   | { type: 'held_enhancement_add_mult'; enhancement: CardEnhancement; amount: number }
   | { type: 'growth_hand_add_mult'; hand: PokerHand; amountPerLevel: number }
   | { type: 'blind_clear_money'; amount: number }

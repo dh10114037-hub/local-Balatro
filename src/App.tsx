@@ -3381,7 +3381,13 @@ function getJokerBuildSignals(definition: ReturnType<typeof getJokerDefinition>,
       signals.push(`${HAND_SCORES[effect.hand].name}已升级`);
     }
 
-    if (effect.type === 'add_chips' || effect.type === 'hand_add_chips' || effect.type === 'scored_cards_add_chips' || effect.type === 'rank_add_chips') {
+    if (
+      effect.type === 'add_chips' ||
+      effect.type === 'hand_add_chips' ||
+      effect.type === 'scored_cards_add_chips' ||
+      effect.type === 'rank_add_chips' ||
+      effect.type === 'scored_ranks_add_chips'
+    ) {
       signals.push('稳定补筹码');
     }
 
@@ -3396,7 +3402,10 @@ function getJokerBuildSignals(definition: ReturnType<typeof getJokerDefinition>,
       effect.type === 'remaining_discards_add_mult' ||
       effect.type === 'first_hand_add_mult' ||
       effect.type === 'money_add_mult' ||
-      effect.type === 'scored_cards_at_most_add_mult'
+      effect.type === 'scored_cards_at_most_add_mult' ||
+      effect.type === 'selected_cards_at_most_add_mult' ||
+      effect.type === 'scored_ranks_add_mult' ||
+      effect.type === 'joker_count_add_mult'
     ) {
       signals.push('提高 +Mult');
     }

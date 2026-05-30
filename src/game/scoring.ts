@@ -10,6 +10,7 @@ export type JokerScoringContext = {
   discardsRemaining: number;
   handsRemainingBeforePlay: number;
   playedHandsThisBlind: number;
+  selectedCardsCount?: number;
   money: number;
   handLevels: HandLevels;
   heldCards: Card[];
@@ -441,6 +442,13 @@ function applyEffect(
     });
   }
 
+  if (effect.type === 'selected_cards_at_most_add_mult' && (context.selectedCardsCount ?? scoredCards.length) <= effect.maxCards) {
+    log.finalMult += effect.amount;
+    return createModifier(sourceId, source, `本手选择不超过 ${effect.maxCards} 张牌，+${effect.amount} 倍率`, {
+      multDelta: effect.amount
+    });
+  }
+
   if (effect.type === 'repeat_first_scored_card') {
     const firstScoredCard = log.scoredCards.find((scoredCard) => !scoredCard.disabled);
     if (!firstScoredCard || firstScoredCard.chips <= 0) return null;
@@ -464,6 +472,31 @@ function applyEffect(
     if (amount <= 0) return null;
     log.finalMult += amount;
     return createModifier(sourceId, source, `${count} 张 ${effect.rank} 计分，+${amount} 倍率`, { multDelta: amount });
+  }
+
+  if (effect.type === 'scored_ranks_add_chips') {
+    const rankSet = new Set(effect.ranks);
+    const count = countScored(scoredCards, (card) => rankSet.has(card.rank));
+    const amount = count * effect.amount;
+    if (amount <= 0) return null;
+    log.finalChips += amount;
+    return createModifier(sourceId, source, `${count} 张指定点数计分，+${amount} 筹码`, { chipsDelta: amount });
+  }
+
+  if (effect.type === 'scored_ranks_add_mult') {
+    const rankSet = new Set(effect.ranks);
+    const count = countScored(scoredCards, (card) => rankSet.has(card.rank));
+    const amount = count * effect.amount;
+    if (amount <= 0) return null;
+    log.finalMult += amount;
+    return createModifier(sourceId, source, `${count} 张指定点数计分，+${amount} 倍率`, { multDelta: amount });
+  }
+
+  if (effect.type === 'joker_count_add_mult') {
+    const amount = context.jokers.length * effect.amountPerJoker;
+    if (amount <= 0) return null;
+    log.finalMult += amount;
+    return createModifier(sourceId, source, `${context.jokers.length} 张小丑，+${amount} 倍率`, { multDelta: amount });
   }
 
   if (effect.type === 'held_enhancement_add_mult') {
@@ -527,19 +560,23 @@ function applyJokerEffects(
 }
 
 export function scorePlayedCardsWithJokers(cards: Card[], context: JokerScoringContext): JokerScoringResult {
+  const scoringContext = {
+    ...context,
+    selectedCardsCount: context.selectedCardsCount ?? cards.length
+  };
   const { log, destroyedCardIds } = scorePlayedCardsInternal(cards, {
-    handLevels: context.handLevels,
-    heldCards: context.heldCards,
-    rng: context.rng,
-    disabledCardReasons: context.disabledCardReasons
+    handLevels: scoringContext.handLevels,
+    heldCards: scoringContext.heldCards,
+    rng: scoringContext.rng,
+    disabledCardReasons: scoringContext.disabledCardReasons
   });
-  const nextJokers = context.jokers.map((joker) => ({ ...joker }));
+  const nextJokers = scoringContext.jokers.map((joker) => ({ ...joker }));
   const modifiers: ScoringModifier[] = [...log.modifiers];
 
   nextJokers.forEach((joker, index) => {
     const definition = getJokerDefinition(joker.definitionId);
 
-    if (context.disabledJokerRarities?.includes(definition.rarity)) {
+    if (scoringContext.disabledJokerRarities?.includes(definition.rarity)) {
       modifiers.push(createModifier(joker.instanceId, definition.name, '首领规则使这张小丑暂时失效。', {}));
       log.events.push(
         createEvent(`joker-${joker.instanceId}-disabled`, {
@@ -554,7 +591,7 @@ export function scorePlayedCardsWithJokers(cards: Card[], context: JokerScoringC
       return;
     }
 
-    const directModifiers = applyJokerEffects(definition.effects, joker.instanceId, definition.name, joker, context, log);
+    const directModifiers = applyJokerEffects(definition.effects, joker.instanceId, definition.name, joker, scoringContext, log);
     modifiers.push(...directModifiers);
 
     if (definition.effects.some((effect) => effect.type === 'copy_right')) {
@@ -567,7 +604,7 @@ export function scorePlayedCardsWithJokers(cards: Card[], context: JokerScoringC
             joker.instanceId,
             `${definition.name}复制${rightDefinition.name}`,
             rightJoker,
-            context,
+            scoringContext,
             log
           )
         );

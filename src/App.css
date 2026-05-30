@@ -3405,42 +3405,6 @@ button:disabled {
   line-height: 1.45;
 }
 
-.hand-rule-examples {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 8px;
-  margin-top: 12px;
-}
-
-.hand-rule-example {
-  min-width: 0;
-  border: 1px solid rgba(255, 247, 230, 0.14);
-  border-radius: 8px;
-  padding: 8px;
-  background: rgba(255, 255, 255, 0.055);
-}
-
-.hand-rule-example strong {
-  display: block;
-  color: #fff7e6;
-  font-size: 0.92rem;
-}
-
-.hand-rule-example span {
-  display: block;
-  margin-top: 3px;
-  color: var(--gold);
-  font-weight: 950;
-}
-
-.hand-rule-example small {
-  display: block;
-  margin-top: 5px;
-  color: var(--muted);
-  font-size: 0.72rem;
-  line-height: 1.35;
-}
-
 .hand-guide-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -4304,10 +4268,6 @@ button:disabled {
 
   .rules-tabs button {
     flex: 0 0 auto;
-  }
-
-  .hand-rule-examples {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .hand-guide-grid {
@@ -5672,10 +5632,6 @@ button:disabled {
 
   .hand-guide {
     padding: 10px;
-  }
-
-  .hand-rule-examples {
-    grid-template-columns: 1fr;
   }
 
   .hand-rule-card-top {

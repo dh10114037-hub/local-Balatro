@@ -1344,7 +1344,7 @@ const HAND_RULE_GUIDE: HandRuleCard[] = [
   {
     hand: 'two_pair',
     example: ['7♠', '7♥', '8♣', '8♦'],
-    rule: '两组对子。比如 7788 就是两对，可以直接用 4 张打出。',
+    rule: '两组不同点数的对子，可以直接用 4 张打出。',
     badge: '4 张起'
   },
   {
@@ -1356,7 +1356,7 @@ const HAND_RULE_GUIDE: HandRuleCard[] = [
   {
     hand: 'straight',
     example: ['4♣', '5♦', '6♠', '7♥', '8♣'],
-    rule: '必须是 5 张连续点数。A2345 也算顺子；4567 只有 4 张，不算顺子。',
+    rule: '必须是 5 张连续点数。A 可以作为最低点参与低端顺子。',
     badge: '必须 5 张'
   },
   {
@@ -1407,13 +1407,6 @@ const HAND_RULE_GUIDE: HandRuleCard[] = [
     rule: '五条且 5 张同花色，是改造牌堆后的顶级牌型。',
     badge: '改造牌堆'
   }
-];
-
-const HAND_RULE_EXAMPLES = [
-  { pattern: '7788', result: '两对', note: '两组对子，4 张就能打。' },
-  { pattern: '4567', result: '高牌', note: '可以出牌，但不是顺子；顺子必须 5 张连续。' },
-  { pattern: '45678', result: '顺子', note: '5 张连续点数成立。' },
-  { pattern: 'A2345', result: '顺子', note: 'A 可以在这个组合里当作 1。' }
 ];
 
 type RuleTabId = 'quick' | 'hands' | 'scoring' | 'cards' | 'shop' | 'boss';
@@ -1551,15 +1544,6 @@ function RulesPanel({ game }: { game: GameState }) {
                 <h3 id="hand-guide-title">1 到 5 张都能出，系统会取最佳牌型</h3>
               </div>
               <p>顺子、同花、葫芦和特殊牌型通常要求 5 张；对子、两对、三条、四条可以少于 5 张成立。</p>
-            </div>
-            <div className="hand-rule-examples" aria-label="常见边界例子">
-              {HAND_RULE_EXAMPLES.map((example) => (
-                <div className="hand-rule-example" key={example.pattern}>
-                  <strong>{example.pattern}</strong>
-                  <span>→ {example.result}</span>
-                  <small>{example.note}</small>
-                </div>
-              ))}
             </div>
             <div className="hand-guide-grid">
               {HAND_RULE_GUIDE.map((item) => {

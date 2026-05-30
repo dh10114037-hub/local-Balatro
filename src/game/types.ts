@@ -74,7 +74,12 @@ export type SpectralEffect =
   | { type: 'enhance_random_cards'; enhancement: CardEnhancement; count: number; moneyDelta?: number }
   | { type: 'copy_random_card'; count: number; moneyDelta?: number }
   | { type: 'destroy_random_cards'; count: number; moneyDelta?: number }
-  | { type: 'upgrade_random_hands'; count: number; amount: number; moneyDelta?: number };
+  | { type: 'upgrade_random_hands'; count: number; amount: number; moneyDelta?: number }
+  | { type: 'create_random_jokers'; count: number; rarity?: JokerRarity; moneyDelta?: number }
+  | { type: 'destroy_random_jokers'; count: number; moneyDelta?: number }
+  | { type: 'duplicate_random_joker'; count: number; moneyDelta?: number }
+  | { type: 'add_random_enhanced_cards'; enhancement: CardEnhancement; count: number; moneyDelta?: number }
+  | { type: 'set_money'; amount: number };
 
 export type SpectralDefinition = {
   id: string;

@@ -1120,7 +1120,8 @@ describe('P3 consumables and deck modification', () => {
 describe('P5 packs and consumable experience', () => {
   it('defines the first wave of pack types and spectral effects', () => {
     expect(PACKS.map((pack) => pack.kind).sort()).toEqual(['joker', 'planet', 'spectral', 'standard', 'tarot']);
-    expect(SPECTRAL_CARDS.length).toBeGreaterThanOrEqual(5);
+    expect(SPECTRAL_CARDS).toHaveLength(18);
+    expect(new Set(SPECTRAL_CARDS.map((spectral) => spectral.id)).size).toBe(SPECTRAL_CARDS.length);
   });
 
   it('opens a standard pack and adds one playing card to the deck', () => {
@@ -1232,8 +1233,98 @@ describe('P5 packs and consumable experience', () => {
           const totalLevelGain = Object.values(first.handLevels).reduce((total, level) => total + (level - 1), 0);
           expect(totalLevelGain).toBe(effect.count * effect.amount);
         }
+
+        if (effect.type === 'create_random_jokers') {
+          expect(first.jokers).toHaveLength(effect.count);
+          if (effect.rarity) {
+            expect(first.jokers.every((joker) => getJokerDefinition(joker.definitionId).rarity === effect.rarity)).toBe(true);
+          }
+        }
+
+        if (effect.type === 'destroy_random_jokers') {
+          expect(first.jokers).toHaveLength(0);
+        }
+
+        if (effect.type === 'duplicate_random_joker') {
+          expect(first.jokers).toHaveLength(0);
+        }
+
+        if (effect.type === 'add_random_enhanced_cards') {
+          expect(first.deck).toHaveLength(base.deck.length + effect.count);
+          expect(first.deck.filter((deckCard) => deckCard.enhancement === effect.enhancement)).toHaveLength(effect.count);
+        }
+
+        if (effect.type === 'set_money') {
+          expect(first.money).toBe(effect.amount);
+        }
       });
     });
+  });
+
+  it('handles joker-targeting spectral effects safely with empty, full, and occupied slots', () => {
+    const destroyEmpty = choosePackConsumable(
+      {
+        ...createInitialGame('spectral-empty-joker-destroy'),
+        phase: 'shop' as const,
+        money: 3,
+        packChoices: [
+          {
+            instanceId: 'spectral-choice',
+            packId: 'spectral_pack',
+            kind: 'spectral' as const,
+            definitionId: 'spectral_ash_bargain'
+          }
+        ]
+      },
+      'spectral-choice'
+    );
+
+    expect(destroyEmpty.jokers).toHaveLength(0);
+    expect(destroyEmpty.money).toBe(11);
+
+    const duplicateExisting = choosePackConsumable(
+      {
+        ...createInitialGame('spectral-copy-joker'),
+        phase: 'shop' as const,
+        money: 10,
+        jokers: [{ instanceId: 'joker-existing', definitionId: 'mult_starter', level: 2 }],
+        nextJokerInstanceNumber: 7,
+        packChoices: [
+          {
+            instanceId: 'spectral-choice',
+            packId: 'spectral_pack',
+            kind: 'spectral' as const,
+            definitionId: 'spectral_understudy'
+          }
+        ]
+      },
+      'spectral-choice'
+    );
+
+    expect(duplicateExisting.jokers).toHaveLength(2);
+    expect(duplicateExisting.jokers[1]).toMatchObject({ instanceId: 'joker-7', definitionId: 'mult_starter', level: 2 });
+
+    const fullSlots = choosePackConsumable(
+      {
+        ...createInitialGame('spectral-full-joker-create'),
+        phase: 'shop' as const,
+        money: 10,
+        jokerSlots: 1,
+        jokers: [{ instanceId: 'joker-filled', definitionId: 'chip_starter', level: 0 }],
+        packChoices: [
+          {
+            instanceId: 'spectral-choice',
+            packId: 'spectral_pack',
+            kind: 'spectral' as const,
+            definitionId: 'spectral_rare_flare'
+          }
+        ]
+      },
+      'spectral-choice'
+    );
+
+    expect(fullSlots.jokers).toHaveLength(1);
+    expect(fullSlots.money).toBe(4);
   });
 });
 

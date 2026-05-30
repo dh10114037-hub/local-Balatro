@@ -80,6 +80,90 @@ export const SPECTRAL_CARDS: SpectralDefinition[] = [
     name: '轨道跃迁',
     description: '随机 2 个牌型等级 +1，失去 $2。',
     effects: [{ type: 'upgrade_random_hands', count: 2, amount: 1, moneyDelta: -2 }]
+  },
+  {
+    id: 'spectral_gold_dust',
+    name: '金尘',
+    description: '随机 3 张牌变成黄金牌，失去 $2。',
+    effects: [{ type: 'enhance_random_cards', enhancement: 'gold', count: 3, moneyDelta: -2 }]
+  },
+  {
+    id: 'spectral_stone_sleep',
+    name: '石眠',
+    description: '随机 4 张牌变成石头牌，失去 $1。',
+    effects: [{ type: 'enhance_random_cards', enhancement: 'stone', count: 4, moneyDelta: -1 }]
+  },
+  {
+    id: 'spectral_wild_bloom',
+    name: '野花',
+    description: '随机 3 张牌变成万能牌，失去 $2。',
+    effects: [{ type: 'enhance_random_cards', enhancement: 'wild', count: 3, moneyDelta: -2 }]
+  },
+  {
+    id: 'spectral_bonus_tide',
+    name: '筹码潮',
+    description: '随机 4 张牌变成奖励牌，失去 $1。',
+    effects: [{ type: 'enhance_random_cards', enhancement: 'bonus', count: 4, moneyDelta: -1 }]
+  },
+  {
+    id: 'spectral_mult_spark',
+    name: '倍率火花',
+    description: '随机 3 张牌变成倍率牌，失去 $1。',
+    effects: [{ type: 'enhance_random_cards', enhancement: 'mult', count: 3, moneyDelta: -1 }]
+  },
+  {
+    id: 'spectral_clean_cut',
+    name: '清切',
+    description: '随机删除 6 张牌，获得 $10。',
+    effects: [{ type: 'destroy_random_cards', count: 6, moneyDelta: 10 }]
+  },
+  {
+    id: 'spectral_thin_orbit',
+    name: '薄轨',
+    description: '随机删除 2 张牌，并随机 3 个牌型等级 +1。',
+    effects: [
+      { type: 'destroy_random_cards', count: 2 },
+      { type: 'upgrade_random_hands', count: 3, amount: 1 }
+    ]
+  },
+  {
+    id: 'spectral_double_image',
+    name: '重影',
+    description: '复制随机 4 张牌，失去 $4。',
+    effects: [{ type: 'copy_random_card', count: 4, moneyDelta: -4 }]
+  },
+  {
+    id: 'spectral_stranger_mask',
+    name: '陌生面具',
+    description: '创建 1 张随机普通小丑，并把资金清零。',
+    effects: [
+      { type: 'create_random_jokers', count: 1, rarity: 'common' },
+      { type: 'set_money', amount: 0 }
+    ]
+  },
+  {
+    id: 'spectral_rare_flare',
+    name: '稀光',
+    description: '创建 1 张随机稀有小丑，失去 $6。',
+    effects: [{ type: 'create_random_jokers', count: 1, rarity: 'rare', moneyDelta: -6 }]
+  },
+  {
+    id: 'spectral_understudy',
+    name: '替身',
+    description: '复制 1 张随机已有小丑，失去 $3。',
+    effects: [{ type: 'duplicate_random_joker', count: 1, moneyDelta: -3 }]
+  },
+  {
+    id: 'spectral_ash_bargain',
+    name: '灰烬交易',
+    description: '随机销毁 1 张小丑，获得 $8。',
+    effects: [{ type: 'destroy_random_jokers', count: 1, moneyDelta: 8 }]
+  },
+  {
+    id: 'spectral_sealed_cargo',
+    name: '封箱货',
+    description: '向牌组加入 2 张随机钢铁牌，失去 $2。',
+    effects: [{ type: 'add_random_enhanced_cards', enhancement: 'steel', count: 2, moneyDelta: -2 }]
   }
 ];
 

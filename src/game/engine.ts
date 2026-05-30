@@ -687,6 +687,19 @@ function pickUniqueDefinitions<T extends { id: string }>(pool: T[], rng: { next:
   return picked;
 }
 
+function pickUniqueItems<T>(pool: T[], rng: { next: () => number }, count: number): T[] {
+  const available = [...pool];
+  const picked: T[] = [];
+
+  while (available.length > 0 && picked.length < count) {
+    const index = Math.floor(rng.next() * available.length);
+    const [item] = available.splice(index, 1);
+    picked.push(item);
+  }
+
+  return picked;
+}
+
 function createStandardPackCard(state: GameState, offerId: string, index: number, rng: { next: () => number }): Card {
   const suit = SUITS[Math.floor(rng.next() * SUITS.length)];
   const rank = RANKS[Math.floor(rng.next() * RANKS.length)];
@@ -1577,7 +1590,7 @@ function addMoneyDelta(state: GameState, moneyDelta: number | undefined): GameSt
 }
 
 function applySpectralEffect(state: GameState, effect: SpectralEffect, choiceId: string, effectIndex: number): GameState {
-  let nextState = addMoneyDelta(state, effect.moneyDelta);
+  let nextState = addMoneyDelta(state, 'moneyDelta' in effect ? effect.moneyDelta : undefined);
   const rng = createRng(`${state.seed}:spectral:${choiceId}:${effectIndex}`);
 
   if (effect.type === 'enhance_random_cards') {
@@ -1629,6 +1642,71 @@ function applySpectralEffect(state: GameState, effect: SpectralEffect, choiceId:
       }),
       nextState
     );
+  }
+
+  if (effect.type === 'create_random_jokers') {
+    const openSlots = Math.max(0, nextState.jokerSlots - nextState.jokers.length);
+    const pool = JOKERS.filter((joker) => !effect.rarity || joker.rarity === effect.rarity);
+    const picked = pickUniqueDefinitions(pool, rng, Math.min(effect.count, openSlots));
+    const created = picked.map((definition, index) => createJokerInstance(definition.id, nextState.nextJokerInstanceNumber + index));
+
+    nextState = {
+      ...nextState,
+      jokers: [...nextState.jokers, ...created],
+      nextJokerInstanceNumber: nextState.nextJokerInstanceNumber + created.length
+    };
+  }
+
+  if (effect.type === 'destroy_random_jokers') {
+    const targets = pickUniqueItems(nextState.jokers, rng, effect.count);
+    const targetIds = new Set(targets.map((joker) => joker.instanceId));
+
+    nextState = {
+      ...nextState,
+      jokers: nextState.jokers.filter((joker) => !targetIds.has(joker.instanceId)),
+      lastTriggeredJokerIds: nextState.lastTriggeredJokerIds.filter((instanceId) => !targetIds.has(instanceId))
+    };
+  }
+
+  if (effect.type === 'duplicate_random_joker') {
+    const openSlots = Math.max(0, nextState.jokerSlots - nextState.jokers.length);
+    const targets = pickUniqueItems(nextState.jokers, rng, Math.min(effect.count, openSlots));
+    const copies = targets.map((joker, index) => ({
+      ...joker,
+      instanceId: `joker-${nextState.nextJokerInstanceNumber + index}`
+    }));
+
+    nextState = {
+      ...nextState,
+      jokers: [...nextState.jokers, ...copies],
+      nextJokerInstanceNumber: nextState.nextJokerInstanceNumber + copies.length
+    };
+  }
+
+  if (effect.type === 'add_random_enhanced_cards') {
+    const cards = Array.from({ length: effect.count }, (_, index) => {
+      const suit = SUITS[Math.floor(rng.next() * SUITS.length)];
+      const rank = RANKS[Math.floor(rng.next() * RANKS.length)];
+      return {
+        id: `spectral-card-${nextState.nextCardCopyNumber + index}`,
+        suit,
+        rank,
+        enhancement: effect.enhancement
+      };
+    });
+
+    nextState = {
+      ...nextState,
+      deck: [...nextState.deck, ...cards],
+      nextCardCopyNumber: nextState.nextCardCopyNumber + cards.length
+    };
+  }
+
+  if (effect.type === 'set_money') {
+    nextState = {
+      ...nextState,
+      money: Math.max(0, effect.amount)
+    };
   }
 
   return nextState;

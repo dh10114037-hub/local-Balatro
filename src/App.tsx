@@ -3386,7 +3386,11 @@ function getJokerBuildSignals(definition: ReturnType<typeof getJokerDefinition>,
       effect.type === 'hand_add_chips' ||
       effect.type === 'scored_cards_add_chips' ||
       effect.type === 'rank_add_chips' ||
-      effect.type === 'scored_ranks_add_chips'
+      effect.type === 'scored_ranks_add_chips' ||
+      effect.type === 'remaining_discards_add_chips' ||
+      effect.type === 'money_add_chips' ||
+      effect.type === 'scored_enhancement_add_chips' ||
+      effect.type === 'selected_cards_exactly_add_chips'
     ) {
       signals.push('稳定补筹码');
     }
@@ -3404,13 +3408,25 @@ function getJokerBuildSignals(definition: ReturnType<typeof getJokerDefinition>,
       effect.type === 'money_add_mult' ||
       effect.type === 'scored_cards_at_most_add_mult' ||
       effect.type === 'selected_cards_at_most_add_mult' ||
+      effect.type === 'selected_cards_exactly_add_mult' ||
       effect.type === 'scored_ranks_add_mult' ||
-      effect.type === 'joker_count_add_mult'
+      effect.type === 'joker_count_add_mult' ||
+      effect.type === 'scored_enhancement_add_mult' ||
+      effect.type === 'played_hands_add_mult' ||
+      effect.type === 'money_at_most_add_mult' ||
+      effect.type === 'no_discards_add_mult' ||
+      effect.type === 'level_add_mult'
     ) {
       signals.push('提高 +Mult');
     }
 
-    if (effect.type === 'multiply_mult' || effect.type === 'hand_multiply_mult' || effect.type === 'scored_enhancement_multiply_mult' || effect.type === 'last_hand_multiply_mult') {
+    if (
+      effect.type === 'multiply_mult' ||
+      effect.type === 'hand_multiply_mult' ||
+      effect.type === 'scored_enhancement_multiply_mult' ||
+      effect.type === 'held_enhancement_multiply_mult' ||
+      effect.type === 'last_hand_multiply_mult'
+    ) {
       signals.push('xMult 爆发');
     }
 
@@ -3420,7 +3436,7 @@ function getJokerBuildSignals(definition: ReturnType<typeof getJokerDefinition>,
       signals.push(amount > 0 ? `当前约 +${amount} 倍率` : `到 $${effect.divisor} 起动`);
     }
 
-    if (effect.type === 'blind_clear_money' || effect.type === 'reroll_discount' || effect.type === 'sell_bonus_money') {
+    if (effect.type === 'blind_clear_money' || effect.type === 'reroll_discount' || effect.type === 'sell_bonus_money' || effect.type === 'money_add_chips') {
       signals.push('改善商店经济');
     }
 

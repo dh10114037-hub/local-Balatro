@@ -401,6 +401,45 @@ function applyEffect(
     });
   }
 
+  if (effect.type === 'scored_enhancement_add_chips') {
+    const count = countScored(scoredCards, (card) => card.enhancement === effect.enhancement);
+    const amount = count * effect.amount;
+    if (amount <= 0) return null;
+    log.finalChips += amount;
+    return createModifier(sourceId, source, `${count} 张${getEnhancementName(effect.enhancement)}计分，+${amount} 筹码`, {
+      chipsDelta: amount
+    });
+  }
+
+  if (effect.type === 'scored_enhancement_add_mult') {
+    const count = countScored(scoredCards, (card) => card.enhancement === effect.enhancement);
+    const amount = count * effect.amount;
+    if (amount <= 0) return null;
+    log.finalMult += amount;
+    return createModifier(sourceId, source, `${count} 张${getEnhancementName(effect.enhancement)}计分，+${amount} 倍率`, {
+      multDelta: amount
+    });
+  }
+
+  if (effect.type === 'held_enhancement_multiply_mult') {
+    const count = context.heldCards.filter((card) => card.enhancement === effect.enhancement).length;
+    if (count <= 0) return null;
+    const factor = Math.pow(effect.factor, count);
+    log.finalMult *= factor;
+    return createModifier(sourceId, source, `${count} 张${getEnhancementName(effect.enhancement)}留在手牌，倍率 x${Number(factor.toFixed(3))}`, {
+      multFactor: Number(factor.toFixed(3))
+    });
+  }
+
+  if (effect.type === 'remaining_discards_add_chips') {
+    const amount = context.discardsRemaining * effect.amountPerDiscard;
+    if (amount <= 0) return null;
+    log.finalChips += amount;
+    return createModifier(sourceId, source, `剩余 ${context.discardsRemaining} 次弃牌，+${amount} 筹码`, {
+      chipsDelta: amount
+    });
+  }
+
   if (effect.type === 'remaining_discards_add_mult') {
     const amount = context.discardsRemaining * effect.amountPerDiscard;
     if (amount <= 0) return null;
@@ -410,12 +449,32 @@ function applyEffect(
     });
   }
 
+  if (effect.type === 'played_hands_add_mult') {
+    const amount = (context.playedHandsThisBlind + 1) * effect.amountPerHand;
+    if (amount <= 0) return null;
+    log.finalMult += amount;
+    return createModifier(sourceId, source, `本盲注第 ${context.playedHandsThisBlind + 1} 手，+${amount} 倍率`, { multDelta: amount });
+  }
+
   if (effect.type === 'money_add_mult') {
     const rawAmount = Math.floor(context.money / effect.divisor) * effect.amount;
     const amount = effect.max === undefined ? rawAmount : Math.min(effect.max, rawAmount);
     if (amount <= 0) return null;
     log.finalMult += amount;
     return createModifier(sourceId, source, `资金带来 +${amount} 倍率`, { multDelta: amount });
+  }
+
+  if (effect.type === 'money_add_chips') {
+    const rawAmount = Math.floor(context.money / effect.divisor) * effect.amount;
+    const amount = effect.max === undefined ? rawAmount : Math.min(effect.max, rawAmount);
+    if (amount <= 0) return null;
+    log.finalChips += amount;
+    return createModifier(sourceId, source, `资金带来 +${amount} 筹码`, { chipsDelta: amount });
+  }
+
+  if (effect.type === 'money_at_most_add_mult' && context.money <= effect.maxMoney) {
+    log.finalMult += effect.amount;
+    return createModifier(sourceId, source, `资金不超过 $${effect.maxMoney}，+${effect.amount} 倍率`, { multDelta: effect.amount });
   }
 
   if (effect.type === 'first_hand_add_mult' && context.playedHandsThisBlind === 0) {
@@ -447,6 +506,16 @@ function applyEffect(
     return createModifier(sourceId, source, `本手选择不超过 ${effect.maxCards} 张牌，+${effect.amount} 倍率`, {
       multDelta: effect.amount
     });
+  }
+
+  if (effect.type === 'selected_cards_exactly_add_chips' && (context.selectedCardsCount ?? scoredCards.length) === effect.cards) {
+    log.finalChips += effect.amount;
+    return createModifier(sourceId, source, `本手正好选择 ${effect.cards} 张牌，+${effect.amount} 筹码`, { chipsDelta: effect.amount });
+  }
+
+  if (effect.type === 'selected_cards_exactly_add_mult' && (context.selectedCardsCount ?? scoredCards.length) === effect.cards) {
+    log.finalMult += effect.amount;
+    return createModifier(sourceId, source, `本手正好选择 ${effect.cards} 张牌，+${effect.amount} 倍率`, { multDelta: effect.amount });
   }
 
   if (effect.type === 'repeat_first_scored_card') {
@@ -499,6 +568,11 @@ function applyEffect(
     return createModifier(sourceId, source, `${context.jokers.length} 张小丑，+${amount} 倍率`, { multDelta: amount });
   }
 
+  if (effect.type === 'no_discards_add_mult' && context.discardsRemaining === 0) {
+    log.finalMult += effect.amount;
+    return createModifier(sourceId, source, `没有剩余弃牌，+${effect.amount} 倍率`, { multDelta: effect.amount });
+  }
+
   if (effect.type === 'held_enhancement_add_mult') {
     const count = context.heldCards.filter((card) => card.enhancement === effect.enhancement).length;
     const amount = count * effect.amount;
@@ -507,6 +581,13 @@ function applyEffect(
     return createModifier(sourceId, source, `${count} 张${getEnhancementName(effect.enhancement)}留在手牌，+${amount} 倍率`, {
       multDelta: amount
     });
+  }
+
+  if (effect.type === 'level_add_mult') {
+    const amount = instance.level * effect.amountPerLevel;
+    if (amount <= 0) return null;
+    log.finalMult += amount;
+    return createModifier(sourceId, source, `成长等级 ${instance.level}，+${amount} 倍率`, { multDelta: amount });
   }
 
   if (effect.type === 'growth_hand_add_mult' && log.handName === HAND_SCORES[effect.hand].name) {
@@ -625,6 +706,59 @@ export function scorePlayedCardsWithJokers(cards: Card[], context: JokerScoringC
           multAfter: log.finalMult
         })
       );
+    }
+
+    if (definition.growthOnEveryHand) {
+      joker.level += definition.growthOnEveryHand.amount;
+      const growthModifier = createModifier(joker.instanceId, definition.name, `每次出牌后成长到等级 ${joker.level}`, {});
+      modifiers.push(growthModifier);
+      log.events.push(
+        createEvent(`joker-${joker.instanceId}-growth-every-${joker.level}`, {
+          stage: 'joker',
+          label: definition.name,
+          description: growthModifier.description,
+          sourceId: joker.instanceId,
+          chipsAfter: log.finalChips,
+          multAfter: log.finalMult
+        })
+      );
+    }
+
+    if (definition.growthOnNoScoredFace) {
+      const scoredCards = log.scoredCards.filter((scoredCard) => !scoredCard.disabled).map((scoredCard) => scoredCard.card);
+      const hasScoredFace = scoredCards.some(isFaceCard);
+
+      if (hasScoredFace && definition.growthOnNoScoredFace.resetOnFace) {
+        joker.level = 0;
+        const resetModifier = createModifier(joker.instanceId, definition.name, '计分人头牌出现，成长重置。', {});
+        modifiers.push(resetModifier);
+        log.events.push(
+          createEvent(`joker-${joker.instanceId}-growth-reset`, {
+            stage: 'joker',
+            label: definition.name,
+            description: resetModifier.description,
+            sourceId: joker.instanceId,
+            chipsAfter: log.finalChips,
+            multAfter: log.finalMult
+          })
+        );
+      }
+
+      if (!hasScoredFace) {
+        joker.level += definition.growthOnNoScoredFace.amount;
+        const growthModifier = createModifier(joker.instanceId, definition.name, `无计分人头牌，成长到等级 ${joker.level}`, {});
+        modifiers.push(growthModifier);
+        log.events.push(
+          createEvent(`joker-${joker.instanceId}-growth-no-face-${joker.level}`, {
+            stage: 'joker',
+            label: definition.name,
+            description: growthModifier.description,
+            sourceId: joker.instanceId,
+            chipsAfter: log.finalChips,
+            multAfter: log.finalMult
+          })
+        );
+      }
     }
   });
 

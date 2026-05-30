@@ -190,7 +190,60 @@ const JOKER_LOGIC_CASES: Record<string, JokerLogicCase> = {
   ace_scholar: { triggerCards: [card('A', 'spades')], skipCards: [card('K', 'spades')] },
   ten_four_radio: { triggerCards: [card('10', 'spades')], skipCards: [card('K', 'spades')] },
   diamond_drummer: { triggerCards: [card('A', 'diamonds')], skipCards: [card('A', 'spades')] },
-  heart_smith: { triggerCards: [card('A', 'hearts')], skipCards: [card('A', 'spades')] }
+  heart_smith: { triggerCards: [card('A', 'hearts')], skipCards: [card('A', 'spades')] },
+  blind_storyteller: {
+    triggerCards: [card('A', 'spades')],
+    triggerOptions: { playedHandsThisBlind: 2 }
+  },
+  discard_banner: {
+    triggerCards: [card('A', 'spades')],
+    skipCards: [card('A', 'spades')],
+    triggerOptions: { discardsRemaining: 2 },
+    skipOptions: { discardsRemaining: 0 }
+  },
+  empty_peak: {
+    triggerCards: [card('A', 'spades')],
+    skipCards: [card('A', 'spades')],
+    triggerOptions: { discardsRemaining: 0 },
+    skipOptions: { discardsRemaining: 1 }
+  },
+  frugal_clown: {
+    triggerCards: [card('A', 'spades')],
+    skipCards: [card('A', 'spades')],
+    triggerOptions: { money: 3 },
+    skipOptions: { money: 4 }
+  },
+  bull_bank: {
+    triggerCards: [card('A', 'spades')],
+    skipCards: [card('A', 'spades')],
+    triggerOptions: { money: 8 },
+    skipOptions: { money: 0 }
+  },
+  bonus_collector: { triggerCards: [card('A', 'spades', 'bonus')], skipCards: [card('A', 'spades')] },
+  mult_collector: { triggerCards: [card('A', 'spades', 'mult')], skipCards: [card('A', 'spades')] },
+  wild_signal: { triggerCards: [card('A', 'spades', 'wild')], skipCards: [card('A', 'spades')] },
+  stone_stack: { triggerCards: [card('A', 'spades', 'stone')], skipCards: [card('A', 'spades')] },
+  steel_engine: {
+    triggerCards: [card('2', 'clubs')],
+    skipCards: [card('2', 'clubs')],
+    triggerOptions: { heldCards: [card('A', 'hearts', 'steel')] },
+    skipOptions: { heldCards: [card('A', 'hearts')] }
+  },
+  five_card_stamp: {
+    triggerCards: [card('A', 'spades'), card('K', 'hearts'), card('Q', 'clubs'), card('J', 'diamonds'), card('9', 'spades')],
+    skipCards: [card('A', 'spades'), card('K', 'hearts'), card('Q', 'clubs'), card('J', 'diamonds')]
+  },
+  solo_stamp: { triggerCards: [card('A', 'spades')], skipCards: [card('A', 'spades'), card('K', 'hearts')] },
+  face_free_bus: {
+    triggerCards: [card('A', 'spades')],
+    triggerOptions: { level: 2 }
+  },
+  green_counter: {
+    triggerCards: [card('A', 'spades')],
+    triggerOptions: { level: 2 }
+  },
+  glass_accountant: { triggerCards: [card('A', 'spades', 'glass')], skipCards: [card('A', 'spades')] },
+  gold_counter: { triggerCards: [card('A', 'spades', 'gold')], skipCards: [card('A', 'spades')] }
 };
 
 describe('P0 engine', () => {
@@ -429,7 +482,7 @@ describe('P1 run flow', () => {
 
 describe('P2 joker system', () => {
   it('defines a complete data-driven joker roster with metadata', () => {
-    expect(JOKERS).toHaveLength(48);
+    expect(JOKERS).toHaveLength(64);
     expect(new Set(JOKERS.map((joker) => joker.id)).size).toBe(JOKERS.length);
     JOKERS.forEach((joker) => {
       expect(joker.archetypes.length).toBeGreaterThan(0);
@@ -578,6 +631,42 @@ describe('P2 joker system', () => {
 
     expect(afterFirstPair.jokers[0].level).toBe(1);
     expect(afterFirstPair.lastTriggeredJokerIds).toEqual(['joker-growth']);
+  });
+
+  it('grows and resets the newer growth jokers according to their conditions', () => {
+    const noFace = scorePlayedCardsWithJokers([card('A', 'spades')], {
+      jokers: [{ instanceId: 'joker-bus', definitionId: 'face_free_bus', level: 2 }],
+      discardsRemaining: 0,
+      handsRemainingBeforePlay: 2,
+      playedHandsThisBlind: 1,
+      money: 0,
+      handLevels: createDefaultHandLevels(),
+      heldCards: []
+    });
+    const withFace = scorePlayedCardsWithJokers([card('K', 'spades')], {
+      jokers: [{ instanceId: 'joker-bus', definitionId: 'face_free_bus', level: 2 }],
+      discardsRemaining: 0,
+      handsRemainingBeforePlay: 2,
+      playedHandsThisBlind: 1,
+      money: 0,
+      handLevels: createDefaultHandLevels(),
+      heldCards: []
+    });
+    const green = scorePlayedCardsWithJokers([card('A', 'spades')], {
+      jokers: [{ instanceId: 'joker-green', definitionId: 'green_counter', level: 2 }],
+      discardsRemaining: 0,
+      handsRemainingBeforePlay: 2,
+      playedHandsThisBlind: 1,
+      money: 0,
+      handLevels: createDefaultHandLevels(),
+      heldCards: []
+    });
+
+    expect(noFace.jokers[0].level).toBe(3);
+    expect(withFace.jokers[0].level).toBe(0);
+    expect(green.jokers[0].level).toBe(3);
+    expect(noFace.log.events.some((event) => event.description.includes('无计分人头牌'))).toBe(true);
+    expect(withFace.log.events.some((event) => event.description.includes('成长重置'))).toBe(true);
   });
 
   it('triggers and skips the new scoring jokers in their intended situations', () => {

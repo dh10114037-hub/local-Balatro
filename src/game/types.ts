@@ -190,20 +190,31 @@ export type JokerEffect =
   | { type: 'scored_face_add_chips'; amount: number }
   | { type: 'scored_face_add_mult'; amount: number }
   | { type: 'scored_enhancement_multiply_mult'; enhancement: CardEnhancement; factor: number }
+  | { type: 'scored_enhancement_add_chips'; enhancement: CardEnhancement; amount: number }
+  | { type: 'scored_enhancement_add_mult'; enhancement: CardEnhancement; amount: number }
+  | { type: 'held_enhancement_multiply_mult'; enhancement: CardEnhancement; factor: number }
+  | { type: 'remaining_discards_add_chips'; amountPerDiscard: number }
   | { type: 'remaining_discards_add_mult'; amountPerDiscard: number }
+  | { type: 'played_hands_add_mult'; amountPerHand: number }
   | { type: 'money_add_mult'; amount: number; divisor: number; max?: number }
+  | { type: 'money_add_chips'; amount: number; divisor: number; max?: number }
+  | { type: 'money_at_most_add_mult'; maxMoney: number; amount: number }
   | { type: 'first_hand_add_mult'; amount: number }
   | { type: 'last_hand_multiply_mult'; factor: number }
   | { type: 'scored_cards_add_chips'; amountPerCard: number }
   | { type: 'scored_cards_at_most_add_mult'; maxCards: number; amount: number }
   | { type: 'selected_cards_at_most_add_mult'; maxCards: number; amount: number }
+  | { type: 'selected_cards_exactly_add_chips'; cards: number; amount: number }
+  | { type: 'selected_cards_exactly_add_mult'; cards: number; amount: number }
   | { type: 'repeat_first_scored_card' }
   | { type: 'rank_add_chips'; rank: Rank; amount: number }
   | { type: 'rank_add_mult'; rank: Rank; amount: number }
   | { type: 'scored_ranks_add_chips'; ranks: Rank[]; amount: number }
   | { type: 'scored_ranks_add_mult'; ranks: Rank[]; amount: number }
   | { type: 'joker_count_add_mult'; amountPerJoker: number }
+  | { type: 'no_discards_add_mult'; amount: number }
   | { type: 'held_enhancement_add_mult'; enhancement: CardEnhancement; amount: number }
+  | { type: 'level_add_mult'; amountPerLevel: number }
   | { type: 'growth_hand_add_mult'; hand: PokerHand; amountPerLevel: number }
   | { type: 'blind_clear_money'; amount: number }
   | { type: 'reroll_discount'; amount: number }
@@ -301,6 +312,13 @@ export type JokerDefinition = {
   growthOnHand?: {
     hand: PokerHand;
     amount: number;
+  };
+  growthOnEveryHand?: {
+    amount: number;
+  };
+  growthOnNoScoredFace?: {
+    amount: number;
+    resetOnFace: boolean;
   };
 };
 

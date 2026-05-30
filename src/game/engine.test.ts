@@ -478,6 +478,44 @@ describe('P1 run flow', () => {
     expect(visited).toHaveLength(MAX_ANTE * 3);
     expect(state.phase).toBe('run_won');
   });
+
+  it('can replay a fixed early-run path through Ante 3 with shop interactions', () => {
+    let state: GameState = createInitialGame('expanded-content-regression');
+    let purchases = 0;
+    let refreshes = 0;
+
+    while (!(state.phase === 'blind_select' && state.ante === 3 && state.blindIndex === 0)) {
+      const started = startCurrentBlind(state);
+      const selected = toggleCardSelection({ ...started, targetScore: 0 }, started.hand[0].id);
+      let shop = playSelectedCards(selected);
+
+      expect(shop.phase).toBe('shop');
+      expect(shop.shopOffers.length).toBeGreaterThan(0);
+      expect(shop.shopOffers.every((offer) => offer.price >= 0)).toBe(true);
+
+      const affordableOffer = shop.shopOffers.find((offer) => offer.price <= shop.money);
+      if (affordableOffer) {
+        shop = buyShopItem(shop, affordableOffer.id);
+        purchases += 1;
+      }
+
+      if (shop.phase === 'shop' && shop.packChoices.length > 0) {
+        shop = skipPackChoice(shop);
+      }
+
+      if (shop.phase === 'shop' && shop.money >= shop.shopRerollCost) {
+        shop = refreshShop(shop);
+        refreshes += 1;
+      }
+
+      state = advanceFromShop(shop);
+    }
+
+    expect(state.ante).toBe(3);
+    expect(state.blindIndex).toBe(0);
+    expect(purchases).toBeGreaterThan(0);
+    expect(refreshes).toBeGreaterThan(0);
+  });
 });
 
 describe('P2 joker system', () => {

@@ -2094,13 +2094,21 @@ function CollectionList({
   ids,
   total,
   getName,
-  getDescription
+  getDescription,
+  getKicker,
+  visualKind,
+  onInspect,
+  getInspectTarget
 }: {
   title: string;
   ids: string[];
   total: number;
   getName: (id: string) => string;
   getDescription?: (id: string) => string;
+  getKicker?: (id: string) => string;
+  visualKind: 'joker' | 'planet' | 'tarot' | 'spectral' | 'boss' | 'voucher';
+  onInspect?: (target: InspectTarget) => void;
+  getInspectTarget: (id: string) => InspectTarget;
 }) {
   const recentIds = ids.slice(-6).reverse();
 
@@ -2117,10 +2125,17 @@ function CollectionList({
           <span className="collection-empty">尚未见过</span>
         ) : (
           recentIds.map((id) => (
-            <span className="collection-entry" key={id}>
+            <button
+              type="button"
+              className={`collection-entry ${visualKind}`}
+              key={id}
+              onClick={() => onInspect?.(getInspectTarget(id))}
+              title={`${getName(id)}：${getDescription?.(id) ?? '点击查看详情'}`}
+            >
+              {getKicker ? <em>{getKicker(id)}</em> : null}
               <strong>{getName(id)}</strong>
               {getDescription ? <small>{getDescription(id)}</small> : null}
-            </span>
+            </button>
           ))
         )}
       </div>
@@ -2190,7 +2205,7 @@ function StatsPanel({ profile }: { profile: PersistentProfile }) {
   );
 }
 
-function CollectionPanel({ profile }: { profile: PersistentProfile }) {
+function CollectionPanel({ profile, onInspect }: { profile: PersistentProfile; onInspect?: (target: InspectTarget) => void }) {
   const consumableCounts = getConsumableKindCounts(profile.collection.seenConsumables);
   const seenPlanets = profile.collection.seenConsumables.filter((id) => getConsumableDefinition(id).kind === 'planet');
   const seenTarots = profile.collection.seenConsumables.filter((id) => getConsumableDefinition(id).kind === 'tarot');
@@ -2205,6 +2220,10 @@ function CollectionPanel({ profile }: { profile: PersistentProfile }) {
           total={JOKERS.length}
           getName={(id) => getJokerDefinition(id).name}
           getDescription={(id) => getJokerDefinition(id).description}
+          getKicker={(id) => (getJokerDefinition(id).rarity === 'rare' ? '稀有' : getJokerDefinition(id).rarity === 'uncommon' ? '罕见' : '普通')}
+          visualKind="joker"
+          onInspect={onInspect}
+          getInspectTarget={(id) => ({ kind: 'joker', definitionId: id, source: '收藏图鉴' })}
         />
         <CollectionList
           title="星球图鉴"
@@ -2212,6 +2231,10 @@ function CollectionPanel({ profile }: { profile: PersistentProfile }) {
           total={PLANET_CARDS.length}
           getName={(id) => getConsumableDefinition(id).name}
           getDescription={(id) => getConsumableDefinition(id).description}
+          getKicker={() => '星球'}
+          visualKind="planet"
+          onInspect={onInspect}
+          getInspectTarget={(id) => ({ kind: 'consumable', definitionId: id, source: '收藏图鉴' })}
         />
         <CollectionList
           title="塔罗图鉴"
@@ -2219,6 +2242,10 @@ function CollectionPanel({ profile }: { profile: PersistentProfile }) {
           total={TAROT_CARDS.length}
           getName={(id) => getConsumableDefinition(id).name}
           getDescription={(id) => getConsumableDefinition(id).description}
+          getKicker={() => '塔罗'}
+          visualKind="tarot"
+          onInspect={onInspect}
+          getInspectTarget={(id) => ({ kind: 'consumable', definitionId: id, source: '收藏图鉴' })}
         />
         <CollectionList
           title="幻灵图鉴"
@@ -2226,6 +2253,10 @@ function CollectionPanel({ profile }: { profile: PersistentProfile }) {
           total={SPECTRAL_CARDS.length}
           getName={(id) => getSpectralDefinition(id).name}
           getDescription={(id) => getSpectralDefinition(id).description}
+          getKicker={() => '幻灵'}
+          visualKind="spectral"
+          onInspect={onInspect}
+          getInspectTarget={(id) => ({ kind: 'spectral', definitionId: id, source: '收藏图鉴' })}
         />
         <CollectionList
           title="首领图鉴"
@@ -2233,6 +2264,10 @@ function CollectionPanel({ profile }: { profile: PersistentProfile }) {
           total={BOSSES.length}
           getName={(id) => getBossDefinition(id).name}
           getDescription={(id) => getBossDefinition(id).description}
+          getKicker={() => '首领'}
+          visualKind="boss"
+          onInspect={onInspect}
+          getInspectTarget={(id) => ({ kind: 'boss', definitionId: id, source: '收藏图鉴' })}
         />
         <CollectionList
           title="优惠券图鉴"
@@ -2243,6 +2278,10 @@ function CollectionPanel({ profile }: { profile: PersistentProfile }) {
             const voucher = getVoucherDefinition(id);
             return `${voucher.tier === 2 ? '升级券' : '基础券'}：${voucher.description}`;
           }}
+          getKicker={(id) => (getVoucherDefinition(id).tier === 2 ? '升级券' : '基础券')}
+          visualKind="voucher"
+          onInspect={onInspect}
+          getInspectTarget={(id) => ({ kind: 'voucher', definitionId: id, source: '收藏图鉴' })}
         />
       </div>
       <p className="profile-note">
@@ -2259,12 +2298,12 @@ function CollectionPanel({ profile }: { profile: PersistentProfile }) {
   );
 }
 
-function ProfilePanel({ profile }: { profile: PersistentProfile }) {
+function ProfilePanel({ profile, onInspect }: { profile: PersistentProfile; onInspect?: (target: InspectTarget) => void }) {
   return (
     <section>
       <h2>长期资料</h2>
       <StatsPanel profile={profile} />
-      <CollectionPanel profile={profile} />
+      <CollectionPanel profile={profile} onInspect={onInspect} />
     </section>
   );
 }
@@ -2499,7 +2538,7 @@ function MobileOverlaySheet({
               <ScoringLog game={game} detailed={profile.settings.showDetailedScoring} />
             </section>
           )}
-          {activeOverlay === 'profile' && <ProfilePanel profile={profile} />}
+          {activeOverlay === 'profile' && <ProfilePanel profile={profile} onInspect={onInspect} />}
           {activeOverlay === 'settings' && (
             <SettingsPanel
               profile={profile}
@@ -2793,7 +2832,8 @@ function AppInfoPage({
   onClearRun,
   onExportBackup,
   onImportBackup,
-  importMessage
+  importMessage,
+  onInspect
 }: {
   screen: Exclude<AppScreen, 'home' | 'newRun' | 'game'>;
   game: GameState;
@@ -2805,6 +2845,7 @@ function AppInfoPage({
   onExportBackup: () => void;
   onImportBackup: (event: ChangeEvent<HTMLInputElement>) => void;
   importMessage: string | null;
+  onInspect: (target: InspectTarget) => void;
 }) {
   return (
     <section className="menu-screen info-screen">
@@ -2818,7 +2859,7 @@ function AppInfoPage({
         </button>
       </header>
       <div className="info-panel">
-        {screen === 'collection' && <CollectionPanel profile={profile} />}
+        {screen === 'collection' && <CollectionPanel profile={profile} onInspect={onInspect} />}
         {screen === 'stats' && <StatsPanel profile={profile} />}
         {screen === 'rules' && <RulesPanel game={game} />}
         {screen === 'settings' && (
@@ -4554,8 +4595,10 @@ export default function App() {
             onExportBackup={exportBackup}
             onImportBackup={importBackup}
             importMessage={importMessage}
+            onInspect={setInspectTarget}
           />
         )}
+        <DetailModal target={inspectTarget} onClose={() => setInspectTarget(null)} />
         {pendingImport && (
           <ImportConfirmDialog
             pendingImport={pendingImport}
@@ -4719,7 +4762,7 @@ export default function App() {
           <summary>规则说明</summary>
           <RulesPanel game={game} />
         </details>
-        <ProfilePanel profile={profile} />
+        <ProfilePanel profile={profile} onInspect={setInspectTarget} />
         <SettingsPanel
           profile={profile}
           onChange={setProfile}

@@ -480,10 +480,33 @@ export type GameSettings = {
   tutorialDismissed: string[];
 };
 
+export type AchievementRarity = 'common' | 'uncommon' | 'rare' | 'legendary';
+
+export type AchievementCategory = 'progress' | 'scoring' | 'economy' | 'collection' | 'challenge' | 'completion';
+
+export type AchievementDefinition = {
+  id: string;
+  name: string;
+  description: string;
+  points: number;
+  rarity: AchievementRarity;
+  category: AchievementCategory;
+  target?: number;
+  hidden?: boolean;
+};
+
+export type AchievementState = {
+  unlockedIds: string[];
+  progress: Record<string, number>;
+  unlockedAt: Record<string, string>;
+  notificationQueue: string[];
+};
+
 export type PersistentProfile = {
   saveVersion: number;
   collection: CollectionState;
   unlocks: string[];
   stats: ProfileStats;
   settings: GameSettings;
+  achievements: AchievementState;
 };

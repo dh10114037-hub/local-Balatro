@@ -2,6 +2,14 @@ import { type ChangeEvent, type CSSProperties, type ReactNode, useEffect, useMem
 import { createPortal } from 'react-dom';
 import './App.css';
 import packageJson from '../package.json';
+import {
+  ACHIEVEMENT_CATEGORY_LABELS,
+  ACHIEVEMENT_RARITY_LABELS,
+  ACHIEVEMENTS,
+  getAchievementDefinition,
+  getAchievementTarget,
+  getAchievementTotalPoints
+} from './game/config/achievements';
 import { MAX_ANTE } from './game/config/blinds';
 import { BOSSES, getBossDefinition } from './game/config/bosses';
 import {
@@ -48,7 +56,9 @@ import {
 import { evaluateHand } from './game/handEvaluator';
 import {
   createDefaultProfile,
+  clearAchievementNotification,
   normalizeProfile,
+  recordAchievementsFromState,
   recordRunResult,
   recordRunStarted,
   recordSeenFromState,
@@ -60,6 +70,7 @@ import type {
   BlindDefinition,
   BossEffect,
   Card,
+  AchievementCategory,
   ConsumableInstance,
   GamePhase,
   GameState,
@@ -78,12 +89,16 @@ import type {
 const SAVE_KEY = 'local-card-run-p5';
 const PROFILE_KEY = 'local-card-profile-p5';
 const BASE_ANIMATION_MS = 650;
+const ACHIEVEMENT_TOAST_ENTER_MS = 1100;
+const ACHIEVEMENT_TOAST_VISIBLE_MS = 3600;
+const ACHIEVEMENT_TOAST_EXIT_MS = 1150;
 const APP_VERSION = packageJson.version;
 const BACKUP_EXPORT_VERSION = 1;
 const FEEDBACK_URL: string | null = null;
 type SoundKind = 'play' | 'discard' | 'shop' | 'buy' | 'sell' | 'reroll' | 'pack' | 'sort' | 'start' | 'score' | 'mult' | 'error';
 type MobileOverlay = null | 'rules' | 'deck' | 'log' | 'profile' | 'settings';
-type AppScreen = 'home' | 'newRun' | 'collection' | 'stats' | 'settings' | 'rules' | 'game';
+type AppScreen = 'home' | 'newRun' | 'collection' | 'achievements' | 'stats' | 'settings' | 'rules' | 'game';
+type NewRunStep = 'deck' | 'stake' | 'target' | 'replay';
 type SaveBackup = {
   exportVersion: number;
   exportedAt: string;
@@ -114,6 +129,32 @@ type TutorialTip = {
   action?: string;
 };
 const ALL_TUTORIAL_TIP_IDS: TutorialTipId[] = ['blind_select', 'playing', 'selected_cards', 'shop', 'jokers', 'consumables', 'details'];
+const NEW_RUN_STEPS: Array<{ id: NewRunStep; shortTitle: string; title: string; subtitle: string }> = [
+  {
+    id: 'deck',
+    shortTitle: '牌组',
+    title: '选择起手牌组',
+    subtitle: '每副牌组会改变第一局的资源、容错和构筑方向。'
+  },
+  {
+    id: 'stake',
+    shortTitle: '难度',
+    title: '选择挑战难度',
+    subtitle: '更高难度会提高目标分或压缩经济，未解锁难度保持不可选。'
+  },
+  {
+    id: 'target',
+    shortTitle: '目标',
+    title: '选择挑战目标',
+    subtitle: '标准挑战以第 8 层通关为终点；无尽挑战会在通关后继续推进。'
+  },
+  {
+    id: 'replay',
+    shortTitle: '复盘码',
+    title: '设置本局复盘码',
+    subtitle: '复盘码决定洗牌、商店、补充包和首领等随机结果。'
+  }
+];
 const SOUND_FREQUENCIES: Record<SoundKind, number> = {
   play: 520,
   discard: 240,
@@ -163,6 +204,7 @@ const MOBILE_OVERLAY_LABELS: Record<NonNullable<MobileOverlay>, string> = {
 
 const APP_SCREEN_TITLES: Record<Exclude<AppScreen, 'home' | 'newRun' | 'game'>, string> = {
   collection: '收藏图鉴',
+  achievements: '成就大厅',
   stats: '统计资料',
   settings: '设置',
   rules: '规则说明'
@@ -2349,6 +2391,192 @@ function StatsPanel({ profile }: { profile: PersistentProfile }) {
   );
 }
 
+type AchievementFilter = 'all' | AchievementCategory;
+
+const ACHIEVEMENT_FILTERS: Array<{ id: AchievementFilter; label: string }> = [
+  { id: 'all', label: '全部' },
+  { id: 'progress', label: ACHIEVEMENT_CATEGORY_LABELS.progress },
+  { id: 'scoring', label: ACHIEVEMENT_CATEGORY_LABELS.scoring },
+  { id: 'economy', label: ACHIEVEMENT_CATEGORY_LABELS.economy },
+  { id: 'collection', label: ACHIEVEMENT_CATEGORY_LABELS.collection },
+  { id: 'challenge', label: ACHIEVEMENT_CATEGORY_LABELS.challenge },
+  { id: 'completion', label: ACHIEVEMENT_CATEGORY_LABELS.completion }
+];
+
+function formatAchievementDate(value?: string): string {
+  if (!value) {
+    return '未解锁';
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return date.toLocaleDateString('zh-CN', {
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+}
+
+function AchievementPanel({ profile, compact = false }: { profile: PersistentProfile; compact?: boolean }) {
+  const [filter, setFilter] = useState<AchievementFilter>('all');
+  const unlocked = new Set(profile.achievements.unlockedIds);
+  const unlockedCount = unlocked.size;
+  const totalPoints = getAchievementTotalPoints(profile.achievements.unlockedIds);
+  const totalAvailablePoints = ACHIEVEMENTS.reduce((total, achievement) => total + achievement.points, 0);
+  const recentUnlocked = [...profile.achievements.unlockedIds]
+    .sort((left, right) => (profile.achievements.unlockedAt[right] ?? '').localeCompare(profile.achievements.unlockedAt[left] ?? ''))
+    .slice(0, 3);
+  const visibleAchievements = ACHIEVEMENTS.filter((achievement) => filter === 'all' || achievement.category === filter);
+
+  return (
+    <section className="achievement-panel">
+      <div className="section-heading-row">
+        <div>
+          <h2>成就大厅</h2>
+          <p>成就只保存在本地资料里，导出存档时会一起备份。</p>
+        </div>
+        <strong>{totalPoints} AP</strong>
+      </div>
+      <div className="achievement-summary-grid">
+        <Stat label="成就" value={`${unlockedCount}/${ACHIEVEMENTS.length}`} />
+        <Stat label="成就点" value={`${totalPoints}/${totalAvailablePoints}`} />
+        <Stat label="稀有解锁" value={profile.achievements.unlockedIds.filter((id) => getAchievementDefinition(id).rarity === 'rare').length} />
+        <Stat
+          label="传奇解锁"
+          value={profile.achievements.unlockedIds.filter((id) => getAchievementDefinition(id).rarity === 'legendary').length}
+        />
+      </div>
+      <div className="achievement-progress-track" aria-label={`成就完成度 ${unlockedCount}/${ACHIEVEMENTS.length}`}>
+        <div style={{ width: `${Math.round((unlockedCount / ACHIEVEMENTS.length) * 100)}%` }} />
+      </div>
+      {recentUnlocked.length > 0 && (
+        <div className="recent-achievement-strip" aria-label="最近解锁">
+          <span>最近解锁</span>
+          {recentUnlocked.map((achievementId) => {
+            const achievement = getAchievementDefinition(achievementId);
+            return <strong key={achievement.id}>{achievement.name}</strong>;
+          })}
+        </div>
+      )}
+      {!compact && (
+        <div className="achievement-filter-row" role="tablist" aria-label="成就分类">
+          {ACHIEVEMENT_FILTERS.map((entry) => (
+            <button
+              key={entry.id}
+              type="button"
+              className={filter === entry.id ? 'active' : ''}
+              aria-pressed={filter === entry.id}
+              onClick={() => setFilter(entry.id)}
+            >
+              {entry.label}
+            </button>
+          ))}
+        </div>
+      )}
+      <div className={compact ? 'achievement-grid compact' : 'achievement-grid'}>
+        {visibleAchievements.map((achievement) => {
+          const isUnlocked = unlocked.has(achievement.id);
+          const target = getAchievementTarget(achievement);
+          const progress = Math.min(target, profile.achievements.progress[achievement.id] ?? 0);
+          const progressPercent = Math.round((progress / target) * 100);
+          const masked = achievement.hidden && !isUnlocked;
+
+          return (
+            <article
+              className={`achievement-card ${achievement.rarity} ${isUnlocked ? 'unlocked' : 'locked'} ${masked ? 'hidden-achievement' : ''}`}
+              key={achievement.id}
+            >
+              <div className="achievement-emblem" aria-hidden="true">
+                {isUnlocked ? '✓' : masked ? '?' : progressPercent}
+              </div>
+              <div className="achievement-card-body">
+                <div className="achievement-card-top">
+                  <span>{ACHIEVEMENT_CATEGORY_LABELS[achievement.category]}</span>
+                  <em>{ACHIEVEMENT_RARITY_LABELS[achievement.rarity]}｜{achievement.points} AP</em>
+                </div>
+                <strong>{masked ? '隐藏成就' : achievement.name}</strong>
+                <p>{masked ? '继续探索牌局，达成后会显示详情。' : achievement.description}</p>
+                <div className="achievement-mini-track" aria-label={`进度 ${progress}/${target}`}>
+                  <div style={{ width: `${progressPercent}%` }} />
+                </div>
+                <small>{isUnlocked ? `解锁于 ${formatAchievementDate(profile.achievements.unlockedAt[achievement.id])}` : `进度 ${progress}/${target}`}</small>
+              </div>
+            </article>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+function AchievementToast({ achievementId, onDismiss }: { achievementId: string | null; onDismiss: (achievementId: string) => void }) {
+  const [phase, setPhase] = useState<'entering' | 'shown' | 'collapsing'>('entering');
+  const latestDismissRef = useRef(onDismiss);
+
+  useEffect(() => {
+    latestDismissRef.current = onDismiss;
+  }, [onDismiss]);
+
+  useEffect(() => {
+    if (!achievementId) {
+      return;
+    }
+
+    setPhase('entering');
+    const showTimer = window.setTimeout(() => {
+      setPhase('shown');
+    }, ACHIEVEMENT_TOAST_ENTER_MS);
+    const collapseTimer = window.setTimeout(() => {
+      setPhase('collapsing');
+    }, ACHIEVEMENT_TOAST_ENTER_MS + ACHIEVEMENT_TOAST_VISIBLE_MS);
+    const dismissTimer = window.setTimeout(() => {
+      latestDismissRef.current(achievementId);
+    }, ACHIEVEMENT_TOAST_ENTER_MS + ACHIEVEMENT_TOAST_VISIBLE_MS + ACHIEVEMENT_TOAST_EXIT_MS);
+
+    return () => {
+      window.clearTimeout(showTimer);
+      window.clearTimeout(collapseTimer);
+      window.clearTimeout(dismissTimer);
+    };
+  }, [achievementId]);
+
+  if (!achievementId) {
+    return null;
+  }
+
+  const achievement = getAchievementDefinition(achievementId);
+  const dismissWithExit = () => {
+    if (phase === 'collapsing') {
+      return;
+    }
+
+    setPhase('collapsing');
+    window.setTimeout(() => {
+      latestDismissRef.current(achievement.id);
+    }, ACHIEVEMENT_TOAST_EXIT_MS);
+  };
+
+  return createPortal(
+    <aside className={`achievement-toast ${achievement.rarity} ${phase}`} role="status" aria-live="polite">
+      <button type="button" className="achievement-toast-button" onClick={dismissWithExit}>
+        <span className="achievement-toast-orb" aria-hidden="true">
+          ◆
+        </span>
+        <span className="achievement-toast-copy">
+          <small>成就已解锁</small>
+          <strong>{achievement.name}</strong>
+          <em>+{achievement.points} AP</em>
+        </span>
+      </button>
+    </aside>,
+    document.body
+  );
+}
+
 function CollectionPanel({ profile, onInspect }: { profile: PersistentProfile; onInspect?: (target: InspectTarget) => void }) {
   const consumableCounts = getConsumableKindCounts(profile.collection.seenConsumables);
   const seenPlanets = profile.collection.seenConsumables.filter((id) => getConsumableDefinition(id).kind === 'planet');
@@ -2447,6 +2675,7 @@ function ProfilePanel({ profile, onInspect }: { profile: PersistentProfile; onIn
     <section>
       <h2>长期资料</h2>
       <StatsPanel profile={profile} />
+      <AchievementPanel profile={profile} compact />
       <CollectionPanel profile={profile} onInspect={onInspect} />
     </section>
   );
@@ -2752,6 +2981,9 @@ function HomeView({
           <button type="button" className="secondary-action" onClick={() => onNavigate('collection')}>
             收藏图鉴
           </button>
+          <button type="button" className="secondary-action" onClick={() => onNavigate('achievements')}>
+            成就大厅
+          </button>
           <button type="button" className="secondary-action" onClick={() => onNavigate('stats')}>
             统计资料
           </button>
@@ -2812,22 +3044,62 @@ function NewRunView({
   onCancelConfirm: () => void;
   onBack: () => void;
 }) {
+  const [activeStep, setActiveStep] = useState<NewRunStep>('deck');
   const selectedDeck = getDeckDefinition(setupDeckId);
   const secondaryDecks = DECKS.filter((deck) => deck.id !== setupDeckId);
   const selectedStake = getStakeDefinition(setupStakeId);
   const secondaryStakes = STAKES.filter((stake) => stake.id !== setupStakeId);
+  const activeStepIndex = Math.max(
+    0,
+    NEW_RUN_STEPS.findIndex((step) => step.id === activeStep)
+  );
+  const activeStepConfig = NEW_RUN_STEPS[activeStepIndex] ?? NEW_RUN_STEPS[0];
+  const isFirstStep = activeStepIndex === 0;
+  const isFinalStep = activeStepIndex === NEW_RUN_STEPS.length - 1;
+  const replayCode = seedInput.trim() || DEFAULT_SEED;
+  const challengeLabel = setupEndless ? '无尽挑战' : '标准挑战';
+  const challengeDescription = setupEndless
+    ? '通关第 8 层后继续挑战更高层，适合验证后期构筑。'
+    : '通关第 8 层后结算本局，适合完整体验一条 run。';
+
+  function goToRelativeStep(delta: number) {
+    const nextIndex = Math.min(Math.max(activeStepIndex + delta, 0), NEW_RUN_STEPS.length - 1);
+    setActiveStep(NEW_RUN_STEPS[nextIndex].id);
+  }
 
   return (
     <section className="menu-screen new-run-screen">
       <header className="menu-page-header">
         <div>
-          <p className="eyebrow">新开局配置</p>
+          <p className="eyebrow">新开局</p>
           <h1>选择起手规则</h1>
+          <p>按步骤确定牌组、难度、挑战目标和复盘码，再进入盲注选择。</p>
         </div>
         <button type="button" className="secondary-action" onClick={onBack}>
           返回首页
         </button>
       </header>
+
+      <nav className="new-run-stepper" aria-label="新开局步骤">
+        {NEW_RUN_STEPS.map((step, index) => (
+          <button
+            key={step.id}
+            type="button"
+            className={[
+              'new-run-step-button',
+              step.id === activeStep ? 'active' : '',
+              index < activeStepIndex ? 'complete' : ''
+            ]
+              .filter(Boolean)
+              .join(' ')}
+            aria-current={step.id === activeStep ? 'step' : undefined}
+            onClick={() => setActiveStep(step.id)}
+          >
+            <span>{index + 1}</span>
+            <strong>{step.shortTitle}</strong>
+          </button>
+        ))}
+      </nav>
 
       <form
         className="new-run-form"
@@ -2836,111 +3108,204 @@ function NewRunView({
           onStart(false);
         }}
       >
-        <section className="setup-section">
-          <div className="setup-section-heading">
-            <span>1</span>
-            <div>
-              <h2>选择牌组</h2>
-              <p>每副牌组会改变开局节奏和构筑方向。</p>
-            </div>
-          </div>
-          <div className="choice-stack">
-            <button
-              type="button"
-              className="setup-choice selected featured-choice"
-              aria-pressed="true"
-              onClick={() => onDeckChange(selectedDeck.id)}
-            >
-              <span>{selectedDeck.name}</span>
-              <small>{selectedDeck.description}</small>
-            </button>
-            <div className="deck-choice-grid secondary-options">
-              {secondaryDecks.map((deck) => (
-                <button
-                  key={deck.id}
-                  type="button"
-                  className="setup-choice"
-                  aria-pressed="false"
-                  onClick={() => onDeckChange(deck.id)}
-                >
-                  <span>{deck.name}</span>
-                  <small>{deck.description}</small>
-                </button>
-              ))}
-            </div>
-          </div>
-        </section>
+        <div className="new-run-layout">
+          <div className="new-run-main">
+            <section className="new-run-progress-card" aria-live="polite">
+              <span>
+                {activeStepIndex + 1}/{NEW_RUN_STEPS.length} · {activeStepConfig.shortTitle}
+              </span>
+              <h2>{activeStepConfig.title}</h2>
+              <p>{activeStepConfig.subtitle}</p>
+            </section>
 
-        <section className="setup-section">
-          <div className="setup-section-heading">
-            <span>2</span>
-            <div>
-              <h2>选择难度</h2>
-              <p>未解锁难度会保持不可选，避免误开局。</p>
-            </div>
-          </div>
-          <div className="choice-stack">
-            <button
-              type="button"
-              className="setup-choice stake selected featured-choice"
-              aria-pressed="true"
-              disabled={!isStakeUnlocked(profile, selectedStake.id)}
-              onClick={() => onStakeChange(selectedStake.id)}
-            >
-              <span>{selectedStake.name}</span>
-              <small>{selectedStake.description}</small>
-            </button>
-            <div className="stake-choice-row secondary-options">
-              {secondaryStakes.map((stake) => {
-              const unlocked = isStakeUnlocked(profile, stake.id);
+            {activeStep === 'deck' && (
+              <section className="setup-section new-run-step-panel">
+                <div className="setup-section-heading">
+                  <span>1</span>
+                  <div>
+                    <h2>当前牌组</h2>
+                    <p>先选你想要的开局节奏。这里只影响本局起手，不会改长期资料。</p>
+                  </div>
+                </div>
+                <div className="choice-stack">
+                  <button
+                    type="button"
+                    className="setup-choice selected featured-choice"
+                    aria-pressed="true"
+                    onClick={() => onDeckChange(selectedDeck.id)}
+                  >
+                    <span>{selectedDeck.name}</span>
+                    <small>{selectedDeck.description}</small>
+                  </button>
+                  <div className="deck-choice-grid secondary-options">
+                    {secondaryDecks.map((deck) => (
+                      <button
+                        key={deck.id}
+                        type="button"
+                        className="setup-choice"
+                        aria-pressed="false"
+                        onClick={() => onDeckChange(deck.id)}
+                      >
+                        <span>{deck.name}</span>
+                        <small>{deck.description}</small>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </section>
+            )}
 
-              return (
-                <button
-                  key={stake.id}
-                  type="button"
-                  className={setupStakeId === stake.id ? 'setup-choice stake selected' : 'setup-choice stake'}
-                  disabled={!unlocked}
-                  aria-pressed={setupStakeId === stake.id}
-                  onClick={() => onStakeChange(stake.id)}
-                >
-                  <span>{stake.name}</span>
-                  <small>{unlocked ? stake.description : '未解锁'}</small>
-                </button>
-              );
-              })}
-            </div>
-          </div>
-        </section>
+            {activeStep === 'stake' && (
+              <section className="setup-section new-run-step-panel">
+                <div className="setup-section-heading">
+                  <span>2</span>
+                  <div>
+                    <h2>当前难度</h2>
+                    <p>未解锁难度会保持不可选，避免误开局。</p>
+                  </div>
+                </div>
+                <div className="choice-stack">
+                  <button
+                    type="button"
+                    className="setup-choice stake selected featured-choice"
+                    aria-pressed="true"
+                    disabled={!isStakeUnlocked(profile, selectedStake.id)}
+                    onClick={() => onStakeChange(selectedStake.id)}
+                  >
+                    <span>{selectedStake.name}</span>
+                    <small>{selectedStake.description}</small>
+                  </button>
+                  <div className="stake-choice-row secondary-options">
+                    {secondaryStakes.map((stake) => {
+                      const unlocked = isStakeUnlocked(profile, stake.id);
 
-        <section className="setup-section setup-final-section">
-          <div className="setup-section-heading">
-            <span>3</span>
-            <div>
-              <h2>种子与模式</h2>
-              <p>同一种子和同一操作序列可以复盘同一局。</p>
-            </div>
-          </div>
-          <div className="seed-config-panel">
-            <label htmlFor="new-run-seed">种子</label>
-            <input id="new-run-seed" value={seedInput} onChange={(event) => onSeedChange(event.target.value)} spellCheck={false} />
-            <button type="button" className="secondary-action" onClick={onRandomSeed}>
-              随机种子
-            </button>
-            <button type="button" className="secondary-action" onClick={onCopySeed}>
-              复制种子
-            </button>
-            <label className="toggle-row setup-toggle">
-              <input type="checkbox" checked={setupEndless} onChange={(event) => onEndlessChange(event.target.checked)} />
-              <span>无尽模式</span>
-            </label>
-          </div>
-        </section>
+                      return (
+                        <button
+                          key={stake.id}
+                          type="button"
+                          className={setupStakeId === stake.id ? 'setup-choice stake selected' : 'setup-choice stake'}
+                          disabled={!unlocked}
+                          aria-pressed={setupStakeId === stake.id}
+                          onClick={() => onStakeChange(stake.id)}
+                        >
+                          <span>{stake.name}</span>
+                          <small>{unlocked ? stake.description : stake.unlockDescription ?? '未解锁'}</small>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </section>
+            )}
 
-        <div className="new-run-actions">
+            {activeStep === 'target' && (
+              <section className="setup-section new-run-step-panel">
+                <div className="setup-section-heading">
+                  <span>3</span>
+                  <div>
+                    <h2>挑战目标</h2>
+                    <p>这是本局的终点规则，和复盘码不是同一个概念。</p>
+                  </div>
+                </div>
+                <div className="challenge-choice-grid">
+                  <button
+                    type="button"
+                    className={!setupEndless ? 'setup-choice challenge-card selected' : 'setup-choice challenge-card'}
+                    aria-pressed={!setupEndless}
+                    onClick={() => onEndlessChange(false)}
+                  >
+                    <span>标准挑战</span>
+                    <small>通过第 8 层首领盲注后结算本局，适合完整通关体验。</small>
+                  </button>
+                  <button
+                    type="button"
+                    className={setupEndless ? 'setup-choice challenge-card selected' : 'setup-choice challenge-card'}
+                    aria-pressed={setupEndless}
+                    onClick={() => onEndlessChange(true)}
+                  >
+                    <span>无尽挑战</span>
+                    <small>通过第 8 层后继续挑战更高层，适合测试后期构筑强度。</small>
+                  </button>
+                </div>
+              </section>
+            )}
+
+            {activeStep === 'replay' && (
+              <section className="setup-section new-run-step-panel">
+                <div className="setup-section-heading">
+                  <span>4</span>
+                  <div>
+                    <h2>复盘码</h2>
+                    <p>复盘码只控制随机结果；它不是标准或无尽模式。</p>
+                  </div>
+                </div>
+                <div className="replay-code-panel">
+                  <label htmlFor="new-run-seed">当前复盘码</label>
+                  <input id="new-run-seed" value={seedInput} onChange={(event) => onSeedChange(event.target.value)} spellCheck={false} />
+                  <div className="replay-code-actions">
+                    <button type="button" className="secondary-action" onClick={onRandomSeed}>
+                      随机复盘码
+                    </button>
+                    <button type="button" className="secondary-action" onClick={onCopySeed}>
+                      复制复盘码
+                    </button>
+                  </div>
+                  <p>
+                    使用同一复盘码，洗牌、商店、补充包和首领等随机结果会尽量保持一致，方便复盘或分享同一局。
+                  </p>
+                </div>
+              </section>
+            )}
+          </div>
+
+          <aside className="new-run-summary-card" aria-label="当前起手摘要">
+            <span>当前起手</span>
+            <strong>{selectedDeck.name}</strong>
+            <div className="new-run-summary-list">
+              <div>
+                <span>牌组</span>
+                <strong>{selectedDeck.name}</strong>
+                <small>{selectedDeck.description}</small>
+              </div>
+              <div>
+                <span>难度</span>
+                <strong>{selectedStake.name}</strong>
+                <small>{selectedStake.description}</small>
+              </div>
+              <div>
+                <span>挑战目标</span>
+                <strong>{challengeLabel}</strong>
+                <small>{challengeDescription}</small>
+              </div>
+              <div>
+                <span>复盘码</span>
+                <strong className="replay-code-value">{replayCode}</strong>
+                <small>用于复盘本局随机结果。</small>
+              </div>
+            </div>
+            <button type="button" className="primary-menu-action new-run-summary-start" onClick={() => onStart(false)}>
+              开始游戏
+            </button>
+            {hasSavedRun && <small className="summary-warning">已有可继续牌局，开始新局前会再次确认。</small>}
+          </aside>
+        </div>
+
+        <div className="new-run-actions new-run-nav">
           <button type="button" className="secondary-action" onClick={onBack}>
             取消
           </button>
-          <button type="submit">开始游戏</button>
+          <button type="button" className="secondary-action" disabled={isFirstStep} onClick={() => goToRelativeStep(-1)}>
+            上一步
+          </button>
+          {isFinalStep ? (
+            <button type="button" onClick={() => onStart(false)}>
+              开始游戏
+            </button>
+          ) : (
+            <button type="button" onClick={() => goToRelativeStep(1)}>
+              下一步
+            </button>
+          )}
         </div>
       </form>
 
@@ -3004,6 +3369,7 @@ function AppInfoPage({
       </header>
       <div className="info-panel">
         {screen === 'collection' && <CollectionPanel profile={profile} onInspect={onInspect} />}
+        {screen === 'achievements' && <AchievementPanel profile={profile} />}
         {screen === 'stats' && <StatsPanel profile={profile} />}
         {screen === 'rules' && <RulesPanel game={game} />}
         {screen === 'settings' && (
@@ -4195,8 +4561,10 @@ export default function App() {
   const [importMessage, setImportMessage] = useState<string | null>(null);
   const [inspectTarget, setInspectTarget] = useState<InspectTarget | null>(null);
   const previousPhaseRef = useRef<GamePhase>(game.phase);
+  const previousGameRef = useRef<GameState>(game);
   const lockTimerRef = useRef<number | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
+  const queuedAchievementId = profile.achievements.notificationQueue[0] ?? null;
   const selectedCards = useMemo(() => getSelectedCards(game), [game]);
   const selectedPreview = useMemo(() => {
     if (selectedCards.length === 0) {
@@ -4249,6 +4617,7 @@ export default function App() {
 
   useEffect(() => {
     setProfile((current) => {
+      const previousGame = previousGameRef.current;
       let next = recordSeenFromState(current, game);
       next = recordStatsFromState(next, game);
 
@@ -4256,9 +4625,12 @@ export default function App() {
         next = recordRunResult(next, game.phase === 'run_won', game);
       }
 
+      next = recordAchievementsFromState(next, game, previousGame);
+
       return next;
     });
     previousPhaseRef.current = game.phase;
+    previousGameRef.current = game;
   }, [game]);
 
   useEffect(() => {
@@ -4389,8 +4761,9 @@ export default function App() {
     setAppScreen('game');
     setPendingNewRunConfirm(false);
     setActiveOverlay(null);
-    setProfile((current) => recordRunStarted(current, nextGame));
+    setProfile((current) => recordAchievementsFromState(recordRunStarted(current, nextGame), nextGame, null));
     previousPhaseRef.current = nextGame.phase;
+    previousGameRef.current = nextGame;
     playUiSound('start');
   }
 
@@ -4416,6 +4789,7 @@ export default function App() {
     setPendingNewRunConfirm(false);
     setActiveOverlay(null);
     previousPhaseRef.current = nextGame.phase;
+    previousGameRef.current = nextGame;
     playUiSound('start');
   }
 
@@ -4511,6 +4885,7 @@ export default function App() {
       setSetupEndless(pendingImport.game.endless);
       setHasSavedRun(true);
       previousPhaseRef.current = pendingImport.game.phase;
+      previousGameRef.current = pendingImport.game;
     } else {
       window.localStorage.removeItem(SAVE_KEY);
       const nextGame = createInitialGame(seedInput.trim() || DEFAULT_SEED, {
@@ -4521,6 +4896,7 @@ export default function App() {
       setGame(nextGame);
       setHasSavedRun(false);
       previousPhaseRef.current = nextGame.phase;
+      previousGameRef.current = nextGame;
     }
 
     window.localStorage.setItem(PROFILE_KEY, JSON.stringify(pendingImport.profile));
@@ -4727,7 +5103,11 @@ export default function App() {
             }}
           />
         )}
-        {(appScreen === 'collection' || appScreen === 'stats' || appScreen === 'settings' || appScreen === 'rules') && (
+        {(appScreen === 'collection' ||
+          appScreen === 'achievements' ||
+          appScreen === 'stats' ||
+          appScreen === 'settings' ||
+          appScreen === 'rules') && (
           <AppInfoPage
             screen={appScreen}
             game={game}
@@ -4743,6 +5123,10 @@ export default function App() {
           />
         )}
         <DetailModal target={inspectTarget} onClose={() => setInspectTarget(null)} />
+        <AchievementToast
+          achievementId={queuedAchievementId}
+          onDismiss={(achievementId) => setProfile((current) => clearAchievementNotification(current, achievementId))}
+        />
         {pendingImport && (
           <ImportConfirmDialog
             pendingImport={pendingImport}
@@ -4937,6 +5321,10 @@ export default function App() {
         onInspect={setInspectTarget}
       />
       <DetailModal target={inspectTarget} onClose={() => setInspectTarget(null)} />
+      <AchievementToast
+        achievementId={queuedAchievementId}
+        onDismiss={(achievementId) => setProfile((current) => clearAchievementNotification(current, achievementId))}
+      />
       {pendingImport && (
         <ImportConfirmDialog
           pendingImport={pendingImport}

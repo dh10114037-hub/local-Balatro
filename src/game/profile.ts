@@ -1,6 +1,7 @@
-import type { CollectionState, GameSettings, GameState, PersistentProfile, ProfileRunRecord, ProfileStats } from './types';
+import { ACHIEVEMENTS, getAchievementTarget } from './config/achievements';
+import type { AchievementState, CollectionState, GameSettings, GameState, PersistentProfile, ProfileRunRecord, ProfileStats } from './types';
 
-export const PROFILE_SAVE_VERSION = 3;
+export const PROFILE_SAVE_VERSION = 4;
 
 const DEFAULT_COLLECTION: CollectionState = {
   seenJokers: [],
@@ -25,6 +26,13 @@ const DEFAULT_STATS: ProfileStats = {
   stakeRecords: {}
 };
 
+const DEFAULT_ACHIEVEMENTS: AchievementState = {
+  unlockedIds: [],
+  progress: {},
+  unlockedAt: {},
+  notificationQueue: []
+};
+
 export const DEFAULT_SETTINGS: GameSettings = {
   volume: 70,
   animationMode: 'normal',
@@ -41,7 +49,13 @@ export function createDefaultProfile(): PersistentProfile {
     collection: { ...DEFAULT_COLLECTION },
     unlocks: [],
     stats: { ...DEFAULT_STATS, deckRecords: {}, stakeRecords: {} },
-    settings: { ...DEFAULT_SETTINGS }
+    settings: { ...DEFAULT_SETTINGS },
+    achievements: {
+      unlockedIds: [],
+      progress: {},
+      unlockedAt: {},
+      notificationQueue: []
+    }
   };
 }
 
@@ -91,6 +105,29 @@ function normalizeSettings(settings?: Partial<GameSettings>): GameSettings {
   };
 }
 
+function normalizeAchievements(achievements?: Partial<AchievementState>): AchievementState {
+  const validIds = new Set(ACHIEVEMENTS.map((achievement) => achievement.id));
+  const unlockedIds = unique(achievements?.unlockedIds ?? DEFAULT_ACHIEVEMENTS.unlockedIds).filter((id) => validIds.has(id));
+  const progress = Object.fromEntries(
+    Object.entries(achievements?.progress ?? DEFAULT_ACHIEVEMENTS.progress)
+      .filter(([id]) => validIds.has(id))
+      .map(([id, value]) => [id, Math.max(0, Math.floor(Number(value) || 0))])
+  );
+  const unlockedAt = Object.fromEntries(
+    Object.entries(achievements?.unlockedAt ?? DEFAULT_ACHIEVEMENTS.unlockedAt).filter(([id, value]) => validIds.has(id) && Boolean(value))
+  );
+  const notificationQueue = unique(achievements?.notificationQueue ?? DEFAULT_ACHIEVEMENTS.notificationQueue).filter((id) =>
+    validIds.has(id)
+  );
+
+  return {
+    unlockedIds,
+    progress,
+    unlockedAt,
+    notificationQueue
+  };
+}
+
 function normalizeRunRecord(record?: Partial<ProfileRunRecord>): ProfileRunRecord {
   return {
     highestAnte: Math.max(1, record?.highestAnte ?? DEFAULT_RUN_RECORD.highestAnte),
@@ -119,31 +156,113 @@ function updateRunRecord(
 export function normalizeProfile(parsed?: Partial<PersistentProfile>): PersistentProfile {
   const fallback = createDefaultProfile();
 
-  return refreshProfileUnlocks({
-    saveVersion: PROFILE_SAVE_VERSION,
-    collection: {
-      seenJokers: unique(parsed?.collection?.seenJokers ?? fallback.collection.seenJokers),
-      seenConsumables: unique(parsed?.collection?.seenConsumables ?? fallback.collection.seenConsumables),
-      seenSpectrals: unique(parsed?.collection?.seenSpectrals ?? fallback.collection.seenSpectrals),
-      seenBosses: unique(parsed?.collection?.seenBosses ?? fallback.collection.seenBosses),
-      seenVouchers: unique(parsed?.collection?.seenVouchers ?? fallback.collection.seenVouchers)
+  return refreshProfileUnlocks(
+    {
+      saveVersion: PROFILE_SAVE_VERSION,
+      collection: {
+        seenJokers: unique(parsed?.collection?.seenJokers ?? fallback.collection.seenJokers),
+        seenConsumables: unique(parsed?.collection?.seenConsumables ?? fallback.collection.seenConsumables),
+        seenSpectrals: unique(parsed?.collection?.seenSpectrals ?? fallback.collection.seenSpectrals),
+        seenBosses: unique(parsed?.collection?.seenBosses ?? fallback.collection.seenBosses),
+        seenVouchers: unique(parsed?.collection?.seenVouchers ?? fallback.collection.seenVouchers)
+      },
+      unlocks: unique(parsed?.unlocks ?? fallback.unlocks),
+      stats: {
+        highestAnte: Math.max(1, parsed?.stats?.highestAnte ?? fallback.stats.highestAnte),
+        highestSingleHandScore: Math.max(0, parsed?.stats?.highestSingleHandScore ?? fallback.stats.highestSingleHandScore),
+        winCount: Math.max(0, parsed?.stats?.winCount ?? fallback.stats.winCount),
+        lossCount: Math.max(0, parsed?.stats?.lossCount ?? fallback.stats.lossCount),
+        runsStarted: Math.max(0, parsed?.stats?.runsStarted ?? fallback.stats.runsStarted),
+        highestEndlessAnte: Math.max(0, parsed?.stats?.highestEndlessAnte ?? fallback.stats.highestEndlessAnte),
+        deckRecords: normalizeRunRecords(parsed?.stats?.deckRecords),
+        stakeRecords: normalizeRunRecords(parsed?.stats?.stakeRecords)
+      },
+      settings: normalizeSettings(parsed?.settings),
+      achievements: normalizeAchievements(parsed?.achievements)
     },
-    unlocks: unique(parsed?.unlocks ?? fallback.unlocks),
-    stats: {
-      highestAnte: Math.max(1, parsed?.stats?.highestAnte ?? fallback.stats.highestAnte),
-      highestSingleHandScore: Math.max(0, parsed?.stats?.highestSingleHandScore ?? fallback.stats.highestSingleHandScore),
-      winCount: Math.max(0, parsed?.stats?.winCount ?? fallback.stats.winCount),
-      lossCount: Math.max(0, parsed?.stats?.lossCount ?? fallback.stats.lossCount),
-      runsStarted: Math.max(0, parsed?.stats?.runsStarted ?? fallback.stats.runsStarted),
-      highestEndlessAnte: Math.max(0, parsed?.stats?.highestEndlessAnte ?? fallback.stats.highestEndlessAnte),
-      deckRecords: normalizeRunRecords(parsed?.stats?.deckRecords),
-      stakeRecords: normalizeRunRecords(parsed?.stats?.stakeRecords)
-    },
-    settings: normalizeSettings(parsed?.settings)
-  });
+    { notifyAchievements: false }
+  );
 }
 
-export function refreshProfileUnlocks(profile: PersistentProfile): PersistentProfile {
+type AchievementRefreshOptions = {
+  notifyAchievements?: boolean;
+  now?: string;
+};
+
+function withAchievementProgress(profile: PersistentProfile, achievementId: string, rawValue: number, options: AchievementRefreshOptions = {}) {
+  const definition = ACHIEVEMENTS.find((achievement) => achievement.id === achievementId);
+
+  if (!definition) {
+    return profile;
+  }
+
+  const target = getAchievementTarget(definition);
+  const value = Math.max(0, Math.min(target, Math.floor(rawValue)));
+  const currentValue = profile.achievements.progress[achievementId] ?? 0;
+  const progress = value > currentValue ? { ...profile.achievements.progress, [achievementId]: value } : profile.achievements.progress;
+  const alreadyUnlocked = profile.achievements.unlockedIds.includes(achievementId);
+
+  if (value < target || alreadyUnlocked) {
+    return progress === profile.achievements.progress
+      ? profile
+      : {
+          ...profile,
+          achievements: {
+            ...profile.achievements,
+            progress
+          }
+        };
+  }
+
+  const unlockedIds = unique([...profile.achievements.unlockedIds, achievementId]);
+  const notificationQueue =
+    options.notifyAchievements === false || profile.achievements.notificationQueue.includes(achievementId)
+      ? profile.achievements.notificationQueue
+      : [...profile.achievements.notificationQueue, achievementId];
+
+  return {
+    ...profile,
+    achievements: {
+      ...profile.achievements,
+      unlockedIds,
+      progress,
+      unlockedAt: {
+        ...profile.achievements.unlockedAt,
+        [achievementId]: options.now ?? new Date().toISOString()
+      },
+      notificationQueue
+    }
+  };
+}
+
+function refreshProfileAchievements(profile: PersistentProfile, options: AchievementRefreshOptions = {}): PersistentProfile {
+  const consumableSeenCount = profile.collection.seenConsumables.length;
+  const checks: Array<[string, number]> = [
+    ['first_run', profile.stats.runsStarted],
+    ['reach_ante_2', profile.stats.highestAnte],
+    ['reach_ante_3', profile.stats.highestAnte],
+    ['reach_ante_5', profile.stats.highestAnte],
+    ['reach_ante_8', profile.stats.highestAnte],
+    ['win_standard_run', profile.stats.winCount],
+    ['endless_ante_9', profile.stats.highestEndlessAnte],
+    ['score_100', profile.stats.highestSingleHandScore],
+    ['score_1000', profile.stats.highestSingleHandScore],
+    ['score_10000', profile.stats.highestSingleHandScore],
+    ['score_100000', profile.stats.highestSingleHandScore],
+    ['first_joker', profile.collection.seenJokers.length],
+    ['first_voucher', profile.collection.seenVouchers.length],
+    ['see_10_jokers', profile.collection.seenJokers.length],
+    ['see_25_jokers', profile.collection.seenJokers.length],
+    ['see_10_consumables', consumableSeenCount],
+    ['see_5_spectrals', profile.collection.seenSpectrals.length],
+    ['see_10_bosses', profile.collection.seenBosses.length],
+    ['see_8_vouchers', profile.collection.seenVouchers.length]
+  ];
+
+  return checks.reduce((next, [achievementId, value]) => withAchievementProgress(next, achievementId, value, options), profile);
+}
+
+export function refreshProfileUnlocks(profile: PersistentProfile, options: AchievementRefreshOptions = {}): PersistentProfile {
   const unlocks = [...profile.unlocks];
 
   if (profile.stats.highestAnte >= 2) {
@@ -163,8 +282,87 @@ export function refreshProfileUnlocks(profile: PersistentProfile): PersistentPro
   }
 
   return {
-    ...profile,
+    ...refreshProfileAchievements(profile, options),
     unlocks: unique(unlocks)
+  };
+}
+
+function isClearedBlindTransition(previousState: GameState | null | undefined, state: GameState): boolean {
+  return (
+    previousState?.phase === 'playing' &&
+    (state.phase === 'shop' || state.phase === 'run_won') &&
+    Boolean(state.currentBlind)
+  );
+}
+
+export function recordAchievementsFromState(
+  profile: PersistentProfile,
+  state: GameState,
+  previousState?: GameState | null,
+  options: AchievementRefreshOptions = {}
+): PersistentProfile {
+  let next = refreshProfileAchievements(profile, options);
+  const latestScore = Math.max(state.lastScoringLog?.finalScore ?? 0, state.runHighestSingleHandScore);
+  const clearedBlind = isClearedBlindTransition(previousState, state);
+
+  const checks: Array<[string, number]> = [
+    ['first_blind_clear', state.phase === 'shop' || state.phase === 'run_won' ? 1 : 0],
+    ['first_boss_clear', (state.phase === 'shop' || state.phase === 'run_won') && state.currentBlind?.kind === 'boss' ? 1 : 0],
+    ['first_hand_played', state.lastScoringLog ? 1 : 0],
+    ['score_100', latestScore],
+    ['score_1000', latestScore],
+    ['score_10000', latestScore],
+    ['score_100000', latestScore],
+    ['play_pair', state.lastScoringLog?.hand === 'pair' ? 1 : 0],
+    ['play_two_pair', state.lastScoringLog?.hand === 'two_pair' ? 1 : 0],
+    ['play_flush', state.lastScoringLog?.hand === 'flush' ? 1 : 0],
+    ['play_straight', state.lastScoringLog?.hand === 'straight' ? 1 : 0],
+    ['play_full_house', state.lastScoringLog?.hand === 'full_house' ? 1 : 0],
+    ['play_four_kind', state.lastScoringLog?.hand === 'four_of_a_kind' ? 1 : 0],
+    ['first_shop', state.phase === 'shop' ? 1 : 0],
+    ['first_joker', state.jokers.length],
+    ['first_voucher', state.ownedVouchers.length],
+    ['first_reroll', state.shopRefreshCount],
+    ['money_25', state.money],
+    ['money_50', state.money],
+    ['five_jokers', state.jokers.length],
+    ['full_consumables', state.consumableSlots > 0 && state.consumables.length >= state.consumableSlots ? 1 : 0],
+    [
+      'clear_no_discards',
+      clearedBlind && previousState && state.discardsRemaining === previousState.discardsRemaining ? 1 : 0
+    ],
+    ['clear_last_hand', clearedBlind && previousState?.handsRemaining === 1 ? 1 : 0],
+    [
+      'overkill_double',
+      clearedBlind && state.lastScoringLog && state.lastScoringLog.finalScore >= state.targetScore * 2 ? 1 : 0
+    ],
+    ['first_sell', previousState && previousState.jokers.length > state.jokers.length ? 1 : 0],
+    ['open_pack', state.packChoices.length > 0 ? 1 : 0],
+    ['open_spectral_pack', state.packChoices.some((choice) => choice.kind === 'spectral') ? 1 : 0]
+  ];
+
+  checks.forEach(([achievementId, value]) => {
+    next = withAchievementProgress(next, achievementId, value, options);
+  });
+
+  return next;
+}
+
+export function clearAchievementNotification(profile: PersistentProfile, achievementId?: string): PersistentProfile {
+  const notificationQueue = achievementId
+    ? profile.achievements.notificationQueue.filter((id) => id !== achievementId)
+    : profile.achievements.notificationQueue.slice(1);
+
+  if (notificationQueue.length === profile.achievements.notificationQueue.length) {
+    return profile;
+  }
+
+  return {
+    ...profile,
+    achievements: {
+      ...profile.achievements,
+      notificationQueue
+    }
   };
 }
 

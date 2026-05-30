@@ -909,6 +909,45 @@ describe('P3 shop pressure', () => {
     expect(refreshed.shopRefreshCount).toBe(1);
     expect(refreshed.shopOffers.every((offer) => !offer.id.includes('first-shop'))).toBe(true);
   });
+
+  it('keeps expanded shop prices and reroll costs non-negative under stacked discounts', () => {
+    const shop = {
+      ...createInitialGame('discount-pressure'),
+      phase: 'shop' as const,
+      money: 99,
+      ownedVouchers: ['cheap_shuffle', 'soft_shuffle', 'wholesale', 'warehouse_deal', 'pack_coupon', 'pack_broker', 'extra_shelf', 'crowded_shelf'],
+      shopRerollCost: 0,
+      shopRefreshCount: 0
+    };
+    const refreshed = refreshShop(shop);
+
+    expect(refreshed.shopOffers).toHaveLength(6);
+    expect(refreshed.shopOffers.every((offer) => offer.price >= 0)).toBe(true);
+    expect(refreshed.shopRerollCost).toBeGreaterThanOrEqual(0);
+    expect(refreshed.money).toBe(99);
+  });
+
+  it('keeps ordinary consecutive rerolls under money pressure', () => {
+    let shop: GameState = {
+      ...createInitialGame('reroll-pressure-five'),
+      phase: 'shop',
+      money: 30,
+      shopRerollCost: STARTING_REROLL_COST,
+      shopRefreshCount: 0
+    };
+
+    for (let count = 0; count < 5; count += 1) {
+      shop = refreshShop(shop);
+    }
+
+    expect(shop.shopRefreshCount).toBe(5);
+    expect(shop.money).toBe(5);
+    expect(shop.shopRerollCost).toBe(8);
+
+    const blocked = refreshShop(shop);
+    expect(blocked.shopRefreshCount).toBe(5);
+    expect(blocked.message).toContain('资金不足');
+  });
 });
 
 describe('P3 consumables and deck modification', () => {
